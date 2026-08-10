@@ -36,6 +36,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-002 初期対象OSをmacOSに限定](06-adr/ADR-002-macos-first.md)
 - [ADR-003 macOSネイティブ・単一ユーザー構成](06-adr/ADR-003-native-single-user-stack.md)
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](06-adr/ADR-004-private-build-binary-delivery.md)
+- [ADR-005 システム音声とマイク音声を別原本として保存](06-adr/ADR-005-separate-system-and-microphone-audio.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 

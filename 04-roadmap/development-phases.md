@@ -34,6 +34,10 @@ Status: 完了（2026-08-11）
 - 原本とメタデータのローカル保存。
 - Source Bundle、Manifest schema、SQLite Indexの最小実装。
 - 保存、AI処理、完了、失敗の状態表示。
+- 総コンテンツ数とLocal Vault使用量の表示。
+- Source Bundleから再構築可能なSQLite `sources` Index。
+- 直近取得の2段階確認とゴミ箱への移動。
+- 明示的に有効化する保存完了通知。
 
 ## Phase 2: Immediate Processing
 

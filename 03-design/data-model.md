@@ -35,7 +35,10 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
   "id": "01K2ABC...",
   "type": "capture",
   "capturedAt": "2026-08-10T09:30:00+09:00",
-  "sourceApplication": "Slack",
+  "sourceApplication": {
+    "name": "Example App",
+    "bundleIdentifier": "com.example.app"
+  },
   "original": {
     "path": "source.png",
     "sha256": "..."
@@ -50,6 +53,8 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
 ```
 
 実際のスキーマは実装前に確定する。この例へ秘密情報や不要な個人情報を追加しない。
+
+Phase 1では`sourceApplication`へ取得時の前面アプリ名とBundle IDだけを保存する。メール件名、文書名、ウィンドウタイトルは自動メタデータへ含めない。既存Manifestに`sourceApplication`がない場合も読み込める後方互換を維持する。
 
 ### Summary
 

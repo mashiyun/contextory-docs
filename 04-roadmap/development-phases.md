@@ -32,11 +32,13 @@ Status: 完了（2026-08-11）
 - 画面録画。
 - 開始、停止、経過時間、取得状態の表示。
 - 原本とメタデータのローカル保存。
+- 取得元アプリ名・Bundle IDのManifest記録。
 - Source Bundle、Manifest schema、SQLite Indexの最小実装。
 - 保存、AI処理、完了、失敗の状態表示。
 - 総コンテンツ数とLocal Vault使用量の表示。
 - Source Bundleから再構築可能なSQLite `sources` Index。
 - 直近取得の2段階確認とゴミ箱への移動。
+- 再起動後の直近Source復元。
 - 明示的に有効化する保存完了通知。
 
 ## Phase 2: Immediate Processing

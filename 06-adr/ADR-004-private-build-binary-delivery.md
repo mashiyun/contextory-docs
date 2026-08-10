@@ -18,7 +18,8 @@ macOSではApp Store外から取得したアプリにGatekeeperが適用され�
 - Bundle IDを初期段階で固定し、更新版でも維持する。
 - Release成果物へ実業務データ、秘密情報、ログ、開発用設定を同梱しない。
 - 配布前にコード署名状態、entitlements、同梱内容、SHA-256を確認する。
-- 署名・notarization方式はApple Developer Programの利用可否を確認して初回会社Mac導入前に確定する。
+- 現在の本人限定配布はad-hoc署名を使用し、SHA-256照合後に会社Macでquarantine属性を削除して起動する。
+- Developer ID署名・notarizationは、会社Macのポリシー変更、配布対象拡大、または手動許可運用が負担になった場合に再評価する。
 
 ## Preferred delivery
 
@@ -69,10 +70,9 @@ Developer IDを利用できない場合は、XcodeのCopy Appによる未署名�
 
 ## Follow-up
 
-- Apple Developer ProgramとDeveloper ID証明書の利用可否を確認する。
-- 会社MacのmacOS、CPU architecture、Claude Codeを確認する。
-- 固定Bundle IDを決定する。
-- 機能実装を進める前のPhase 0で初回バイナリ配布PoCを行う。
-- 最小の画面収録・マイク権限要求をPhase 0へ含める。
-- 更新版への置き換えで権限とアプリデータが維持されるかPhase 0で確認する。
-- 必要になった場合だけ会社Mac向けローカルビルド手順を作成する。
+- 更新版への置き換えで権限とアプリデータが維持されるか、次回Releaseで確認する。
+- quarantine属性削除が会社Macのポリシーで禁止された場合、Developer ID署名・notarizationまたは会社Macでのローカルビルドを再評価する。
+
+## Phase 0 result
+
+2026-08-11に優先経路の実機PoCを完了した。私用Macで作成したarm64のReleaseアプリをGitHub Releaseから会社Macへ提供し、SHA-256照合後にquarantine属性を削除して起動できた。画面収録・マイク権限、Claude Code実行ファイル検出、Application Support保存、終了後の再起動と状態維持も確認した。詳細は[Phase 0 配布・権限スパイク結果](../07-poc/phase-0-distribution-permissions-result.md)を参照する。

@@ -37,6 +37,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-003 macOSネイティブ・単一ユーザー構成](06-adr/ADR-003-native-single-user-stack.md)
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](06-adr/ADR-004-private-build-binary-delivery.md)
 - [PoC一覧](07-poc/README.md)
+- [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
 ## リポジトリ境界
 
@@ -46,4 +47,4 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-構想と開発基盤を整理している段階です。アプリ実装、技術スタック、保存形式、文字起こし方式は未確定です。
+Phase 0の配布・権限スパイクは完了しました。私用Macでビルドしたアプリを会社Macへ直接配布でき、必要な権限、Claude Code検出、ローカル保存、再起動後の状態維持を確認済みです。次はPhase 1のInput Captureを実装します。

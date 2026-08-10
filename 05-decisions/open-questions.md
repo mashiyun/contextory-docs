@@ -25,12 +25,10 @@
 ## 運用
 
 - 会社PCでのVault保存先とバックアップ方針。
-- Apple Developer Programへ加入済みか。Developer ID署名・notarizationを使用できるか。
-- 初回の会社Mac向けバイナリをDeveloper ID署名・notarizeするか、未署名Copy Appで限定導入するか。
-- 会社Macへの`.app`受け渡し方法とハッシュ照合手順。
-- 会社MacのmacOS、CPU architecture、Claude Codeバージョン確認。優先経路ではXcodeとSwiftは不要。フォールバック採用時だけXcode環境を確認する。
 - アプリ更新時にBundle IDと署名identityを維持し、画面収録・マイク権限が継続するか。
 - 会社Macでのローカルビルドが必要になった場合のclone、build、update手順。
 - Claude Codeへ送信したSourceと時刻を監査記録するか。
 
 上記の会社Mac導入関連項目は機能実装の終盤まで保留せず、Phase 0の配布・権限スパイクで可能な限り解消する。
+
+Phase 0で、GitHub Releaseによる受け渡し、SHA-256照合、ad-hoc署名アプリの起動手順、会社MacのOS／architecture、Claude Code実行ファイル検出を確認した。詳細は[Phase 0 配布・権限スパイク結果](../07-poc/phase-0-distribution-permissions-result.md)を参照する。

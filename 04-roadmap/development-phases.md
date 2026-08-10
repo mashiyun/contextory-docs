@@ -8,6 +8,15 @@
 - 初期対象OSをmacOSに限定するADR。
 - Swift／SwiftUIによるmacOSネイティブ・単一ユーザー構成をADRで確定。
 - 私用Macでビルドし会社Macへバイナリ提供する運用をADRで確定。
+- 固定Bundle IDを決定する。
+- 空のmacOSメニューバーアプリを作成し、Debug／Releaseビルドを確認する。
+- 私用MacでRelease `.app`を生成する。
+- 署名状態、Bundle ID、entitlements、同梱ファイル、SHA-256を確認する。
+- 会社Macへバイナリだけを提供してGatekeeperの初回起動を確認する。
+- 最小の画面収録・マイク権限要求を実装し、会社Macで許可できることを確認する。
+- 会社MacでClaude Codeのパスと認証状態を確認する。
+- 更新版へ置き換えた後も起動、権限、アプリデータを維持できるか確認する。
+- 直接配布が安定しない場合、会社MacへXcodeを導入してローカルビルドするフォールバックを確認する。
 
 ## Phase 1: Input Capture
 
@@ -20,15 +29,6 @@
 - 原本とメタデータのローカル保存。
 - Source Bundle、Manifest schema、SQLite Indexの最小実装。
 - 保存、AI処理、完了、失敗の状態表示。
-
-## Phase 1.5: Binary Delivery Smoke Test
-
-- 私用MacでRelease `.app`を生成する。
-- 署名状態、Bundle ID、entitlements、同梱ファイル、ハッシュを確認する。
-- 会社Macへバイナリだけを提供して初回起動する。
-- Gatekeeper、画面収録、マイク権限、Claude Code検出、Vault作成を確認する。
-- 更新版の上書き後も権限と既存Vaultを維持できるか確認する。
-- 直接配布が安定しない場合、会社MacへXcodeを導入してローカルビルドし、同じ機能を確認する。
 
 ## Phase 2: Immediate Processing
 

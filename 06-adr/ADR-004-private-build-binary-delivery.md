@@ -72,5 +72,7 @@ Developer IDを利用できない場合は、XcodeのCopy Appによる未署名�
 - Apple Developer ProgramとDeveloper ID証明書の利用可否を確認する。
 - 会社MacのmacOS、CPU architecture、Claude Codeを確認する。
 - 固定Bundle IDを決定する。
-- 初回バイナリ配布PoCを行う。
+- 機能実装を進める前のPhase 0で初回バイナリ配布PoCを行う。
+- 最小の画面収録・マイク権限要求をPhase 0へ含める。
+- 更新版への置き換えで権限とアプリデータが維持されるかPhase 0で確認する。
 - 必要になった場合だけ会社Mac向けローカルビルド手順を作成する。

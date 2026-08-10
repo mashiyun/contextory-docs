@@ -24,6 +24,18 @@
 
 ## 最初の縦切りPoC
 
+### Phase 0: 配布・権限スパイク
+
+1. 空のmacOSメニューバーアプリをReleaseビルドする。
+2. 署名、entitlements、同梱内容、SHA-256を確認する。
+3. 会社Macへ`.app`だけを提供し、Gatekeeper経由で起動する。
+4. 最小の画面収録・マイク権限要求が通ることを確認する。
+5. Claude Codeのパスと認証状態を確認する。
+6. 更新版へ置き換え、起動、権限、アプリデータの維持を確認する。
+7. 直接配布が安定しない場合だけ会社Macでローカルビルドする。
+
+### Phase 1以降: CaptureからAI処理まで
+
 1. macOSメニューバーから範囲キャプチャを開始する。
 2. Source Bundleへ原本とManifestを保存する。
 3. SQLite IndexへSourceを登録する。

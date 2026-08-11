@@ -12,14 +12,17 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 初期対象OSはmacOSのみに限定する。
 - macOSメニューバーに常駐し、画面を邪魔せず、すぐ開始・停止できるようにする。
 - 取得したSourceを即時にAIへ渡し、要約とMarkdownを生成する。
-- 事前許可されたSourceは自動処理し、失敗時は手動で再実行できるようにする。
+- ユーザーが明示的に取得・取り込みしたSourceは保存後に自動処理し、失敗を状態表示する。
 - 過去のSourceとの関連を調べ、案件・タスク候補へ自動グルーピングする。
 - 自動グルーピングが誤っている場合はユーザーが修正できるようにする。
 - 案件が文脈を持ち、タスクが対応を持ち、Sourceが根拠になる。
 - 原本、AIによる解釈、ユーザー確認済み情報を分離する。
+- Sourceを複数Contextで再利用し、解析目的ごとのAnalysisを上書きせず追加する。
+- 画像・PDF・テキストを手動取り込みし、AIのタスク分類候補を確認可能な状態で保存する。
 - 原本はローカルに保存し、Claude Codeへ即時送信する対象と範囲はユーザーが事前に許可する。
 - ユーザーが最低1日1回、要約とグルーピングを確認・修正して確定する。
 - 撮り溜めたコンテンツの一覧管理・詳細レビューUIは、常駐型取得エージェントとは別に設計する。
+- 常駐メニューはInput専用、将来のタスク整理画面は確認・補足・関連付け・再解析専用とし、相互の操作を混在させない。
 - 将来のExcel、PowerPoint、Jira、Backlog、Slack出力は確認済み文脈から生成する。
 
 ## 文書一覧
@@ -37,6 +40,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-003 macOSネイティブ・単一ユーザー構成](06-adr/ADR-003-native-single-user-stack.md)
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](06-adr/ADR-004-private-build-binary-delivery.md)
 - [ADR-005 システム音声とマイク音声を別原本として保存](06-adr/ADR-005-separate-system-and-microphone-audio.md)
+- [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存](06-adr/ADR-006-append-only-context-analysis.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
@@ -48,4 +52,4 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクは完了しました。私用Macでビルドしたアプリを会社Macへ直接配布でき、必要な権限、Claude Code検出、ローカル保存、再起動後の状態維持を確認済みです。次はPhase 1のInput Captureを実装します。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2では、画像・PDF・テキストの手動取り込み、ユーザー補足、Source／Context／Analysisの分離、追加専用解析、AIタスク分類までを実装しました。次に会社Macでの実処理確認、文字起こし、自動グルーピングへ進みます。

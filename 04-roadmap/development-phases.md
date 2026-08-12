@@ -1,5 +1,16 @@
 # 開発フェーズ
 
+## 正規モデル実装順
+
+未実装の正規モデルは、次の順で実装する。後続のPhaseは前段の永続化・検証条件を満たすまで開始しない。
+
+1. Source統一・legacy移行
+2. Group
+3. Revision
+4. AI対話
+5. Task関連
+6. 派生Source生成
+
 ## Phase 0: 基盤
 
 Status: 完了（2026-08-11）
@@ -55,7 +66,7 @@ Status: 完了（2026-08-11）
 - 基盤実装済み・UIはPhase 4へ移動: 複数Sourceの手動Context関連付けとグループ全体の統合分析。
 - 実装済み: 画像・PDF・テキストの形式制限、Content Type・byte数・SHA-256記録、暗号化・破損PDF拒否。
 - 実装済み: 貼り付けテキスト単体の一次Source登録。
-- 実装済み: Source／Context／Analysisの分離と、解析目的ごとの追加専用派生結果。
+- 実装済み（互換モデル）: Source／Context／Analysisの分離と、解析目的ごとの追加専用派生結果。
 - 実装済み: AIによるタスク主分類、タグ、確信度、理由の`proposed`保存。
 - 実装済み: `whisper-cli`のarm64静的ビルド、MITライセンス同梱、会社MacでのHomebrew非依存化。
 - 実装済み: 多言語baseモデルのApplication Support配置、SHA-256検証付き取得、手動配置、削除導線。
@@ -71,8 +82,13 @@ Status: 完了（2026-08-11）
 
 ## Phase 3: Grouping Data
 
+- Input、Analysis、Outputを同じSourceとして扱う正規`sourceId`来歴モデルを実装する。
+- `analyses/`／`contexts/`の読み取り互換、legacy `analysisId`から`sourceId`への対応、Revision 1 snapshot検証、Bundle走査での再索引を満たしてから新規書き込みを正規モデルへ切り替える。
+- 既存Analysisへの正規`sourceId`とRevision 1割り当ての検証後にのみ、Revisionの新規書き込みを開始する。
 - Groupの作成、名称変更、削除、Source追加・除外、複数Group所属。
 - Groupは関連情報を集めるだけとし、追加時にAnalysisやOutputを自動生成しない。
+- Groupから派生Sourceを生成する前に、実際に使用する個別Sourceを明示・固定する。
+- Group–Sourceの正本を`group.json`の`sourceLinks`に置き、`group_sources`を再構築可能なSQLite索引として実装する。
 - 案件・タスク候補への自動グルーピング。
 - グルーピング候補、根拠、確信度の保存。
 - 後続の手動修正を可能にする関連モデル。
@@ -91,18 +107,23 @@ Status: 完了（2026-08-11）
 - グルーピングとAI理解の修正・確定。
 - 修正履歴と確認済み文脈の蓄積。
 - Inputを持たないタスク整理画面として、解析結果表示、補足、関連付け、目的別再解析を提供する。
-- 画面または提供テキストから検出した出典URLの表示、確認、編集、リンク遷移。
-- Analysis Source詳細にClaudeへの質問・補足入力を設け、対話履歴を保存して`summary.md`へ反映する。
-- TaskとSource／Groupを多対多で関連付ける。
-- 複数Taskを選択し、出力目的・形式を指定した派生Output Taskを生成する。
+- Analysis Sourceへのテキスト・画像・URL追加、Revision履歴、過去summary、差分、根拠Source、最新`summary.md`のmaterialized view再生成を提供する。各Revisionのsummary snapshot、パス、SHA-256を必須とする。
+- Analysis Source詳細から原本画像のプレビュー、原本音声・動画の再生、原本と追加情報のFinder表示を提供する。
+- 画面画像へローカルVision OCR、URL領域マスク済み派生画像、提供テキストのローカルURL安全化を適用し、失敗時は`needs_review`で自動送信を止める。AI表示URLとローカル遷移URLを分離する。
+- Analysis Source詳細にClaudeへの質問・補足入力を設け、選択済みの追加Source／Groupだけを文脈にして対話履歴とRevisionを保存する。送信時のRevision、summary、Group展開結果、入力ハッシュ、モデル、prompt schema、結果状態を監査記録へ固定する。
+- Claude実行ごとに`jobId`と`createdAt`を持つ一時staging directoryへ、選択済みの通常画像、テキスト、安全化済みURL、文字起こし、代表フレームだけを配置する。URLを含む画像はマスク済み派生画像を使い、Source Bundle全体、音声・動画原本、`localOpenUrl`は配置しない。処理後と次回起動時に実行中Jobへ属さない残存stagingを削除する。
+- AI対話、再分析、Group展開でADR-008を適用し、未前処理／前処理失敗メディアを含む場合はfail-closedで送信を止める。
+- TaskとSource／Groupを多対多で関連付ける。Task–Source／Task–Groupの正本を`task.json`の`sourceLinks`／`groupLinks`に置き、`task_sources`／`task_groups`を再構築可能なSQLite索引とする。
+- 複数Taskを選択し、出力目的・形式を指定した派生Output Sourceを生成する。
 - 来歴をGitHub風のラインで表示するグラフUIを検討する。
 - 音声・動画の削除候補提示と、対象確認を伴う明示承認。期間による自動削除は行わない。
 - Analysis／Sourceの参照確認付きゴミ箱移動。
+- 初期無効のSlack／Teams録音確認を提供する。前面20秒継続、アプリ別既定60分cooldown、15分snooze、60分抑制、当日抑制、対象アプリ・閾値・cooldown設定を実装する。自動録音と会議・マイク・UI内容の精密検知は行わない。
 
 ## Phase 5: Output Support
 
 - Source単体、複数Source、Groupから新しい派生Sourceを生成する。
-- 一次入力、Analysis、Outputを同じSourceモデルへ段階的に統合する。
+- 派生Sourceを後続の生成に再利用し、親Sourceと実際に使用した個別Source IDを逆引きできるようにする。
 - Jira、Backlog、Slack向け下書き。
 - Excel、PowerPointなどの成果物生成。
 - 外部サービスへの反映はユーザー承認後に行う。

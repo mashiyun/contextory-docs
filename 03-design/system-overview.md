@@ -5,13 +5,13 @@
 ```text
 Capture / Audio Recording / Screen Recording
                     ↓
-             Local Source Store
+          Local Source Store / Group
                     ↓
-      Transcription / metadata extraction
+ Local OCR・URL安全化 / media preprocessing
                     ↓
-       Confirmed Claude Code analysis
+  Claude Code analysis / Analysis Revision
                     ↓
-      Summary and Markdown generation
+ Source-derived summary / provenance URL
                     ↓
  Project / Task candidate grouping
                     ↓
@@ -26,7 +26,13 @@ Capture / Audio Recording / Screen Recording
 - Local Vault: 原本、Markdown、派生物の保存。
 - Processing Pipeline: 文字起こし、要約、Markdown生成、関連判定。
 - Media Preprocessor: PCM変換、ローカルWhisper文字起こし、AVFoundationによる動画代表フレーム抽出。成果物がない場合はAI解析へ進めない。
-- AI Adapter: ユーザーがSource単位で確認したデータをClaude Codeへ渡す境界と処理結果。
+- URL Sanitizer: 画像のローカルVision OCR、URL領域をマスクした派生画像、`provided-text`のローカルURL解析を行う。URLを含む原画像はマスク済み派生画像に置き換え、`localOpenUrl`をClaudeへ渡さない。
+- AI Adapter: 会社契約のClaude Codeを、ユーザーがSource単位で確認した業務情報の許可済み処理境界とする。個人Claudeへは送信しない。
+- AI Staging: Source Bundleから選択済みの通常画像・テキスト、安全化済みURL、文字起こし、代表フレームだけを一時ディレクトリへ複製し、Claude処理後に削除する。URLを含む画像はマスク済み派生画像を使い、音声・動画原本と`localOpenUrl`は配置しない。
+- Source Lineage: Input、Analysis、Outputを同じSourceとして保存し、親Sourceと実際に使用した個別Source IDを固定する来歴管理。
+- Analysis Revision: 同じAnalysis Sourceへのテキスト・画像・URL追加、再分析、summary差分、過去summaryを追加専用で管理する境界。
+- AI Invocation Audit: 再分析・対話・Group展開の送信時点のRevision、summary、Source／派生物ハッシュ、Group展開結果、モデル、prompt schema、結果状態をローカルで固定記録する。
+- Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Grouping: Project／Task候補、関連根拠、確信度の生成。
 - Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。別途設計する。
 - Docs: プロダクト仕様と意思決定の正本。
@@ -65,15 +71,22 @@ Contextory Vault/
 │               ├── user-notes.md
 │               ├── transcript.md
 │               ├── preview.jpg
-│               └── frames/
-├── contexts/
-│   └── <context-id>/
-│       ├── context.json
-│       └── analyses/
-│           └── <analysis-id>/
-│               ├── analysis.json
-│               └── summary.md
-├── analyses/             # Source単体の派生Analysis
+│               ├── frames/
+│               └── derived/
+│                   ├── sanitized/  # URLマスク済み送信専用派生物
+│                   └── analysis/
+│                       ├── revisions/
+│                       │   └── <revision-id>/
+│                       │       ├── revision.json
+│                       │       └── summary.md  # 不変snapshot
+│                       ├── conversations/
+│                       ├── audits/
+│                       └── summary.md          # 最新Revisionからのmaterialized view
+├── contexts/             # 既存Context Bundleの読み取り互換専用。新規書き込みしない。
+├── analyses/             # 既存Analysis Bundleの読み取り互換専用。新規書き込みしない。
+├── groups/
+│   └── <group-id>/
+│       └── group.json
 ├── tasks/
 │   └── <task-id>/
 │       └── task.json
@@ -82,17 +95,22 @@ Contextory Vault/
     └── contextory.sqlite3
 ```
 
-- Source BundleはSource ID単位の永続的な記録である。
+- Source Bundleは正規`sourceId`単位の永続的な記録である。新規のInput、Analysis、Outputは正規Sourceモデルへ書き込む。
 - 原本、文字起こし、プレビュー、動画キーフレームをSource Bundleへまとめる。
 - 外部サービスから取り込んだ原文とユーザー補足は、AI生成物および原本と分離する。
 - Source BundleをProject／Taskフォルダへ物理移動しない。複数Project／Taskとの関連はメタデータで表現する。
-- ContextはSource IDだけを参照し、同じSourceを複数の組み合わせへ再利用できる。
-- Analysisは固有IDを持つ追加専用の派生物とし、再解析で過去結果を上書きしない。
+- GroupはSource IDだけを参照し、同じSourceを複数Groupへ再利用できる。Groupへの追加は生成を起動しない。
+- Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
+- 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDを持つ。
+- `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
+- 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
+- Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列とSQLiteはlegacy cacheまたは再構築可能な索引である。
 - `manifest.json`は機械可読な永続メタデータを持つ。
 - MarkdownはユーザーとClaude Codeが確認・再利用できる成果物とする。
 - SQLiteは検索、関連、処理状態、再試行、レビューキュー用のローカル索引とする。
 - SQLiteの永続情報は可能な限りSource Bundleから再構築可能にする。
 - 実行待ち、処理中、ロック、再試行回数などの一時的な運用状態はSQLiteのみで保持できる。
+- Claude実行用のstaging directoryはLocal VaultのBundle外にジョブ単位で作る一時領域であり、`jobId`と`createdAt`を持つ。永続化・バックアップ・Git管理しない。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時には実行中Jobへ属さない残存stagingも削除する。
 
 詳細と判断理由は[ADR-001](../06-adr/ADR-001-local-vault-storage.md)を参照する。
 
@@ -110,6 +128,10 @@ Contextory Vault/
 - 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。
 - 保存完了通知の権限は自動要求せず、ユーザーの明示操作で有効化する。
 - 常駐メニューにはInput操作と処理状態だけを表示する。
+- 録音確認は初期状態で無効とし、ユーザーが有効化した対象アプリだけを検知する。状態はアプリ別の`nextEligibleAt`と`suppressionReason`へ統一する。
+- 判定は、録音中、当日抑制、15分snooze、60分cooldown、表示可能の順に評価する。`nextEligibleAt`到達時は`suppressionReason`を自動解除し、`today_suppressed`も翌日のローカル日付開始時刻に解除する。Slack／Teamsが20秒継続して前面で、表示可能な場合だけパネルを出す。
+- 操作は録音開始、15分後に通知、今回は通知しない（60分抑制）、今日は通知しないとする。対象アプリ、20秒閾値、60分cooldownは設定で変更できる。
+- 録音確認の検知・設定・cooldownはローカルに限定し、前面アプリの検知だけを初期対象とする。
 - 補足、関連付け、手動再解析、結果詳細確認を常駐メニューへ置かない。
 - 権限、Claudeモデル、診断、Local Vault表示は「設定・診断」サブメニューへ集約する。
 
@@ -122,9 +144,15 @@ Contextory Vault/
 - Claude Codeプロセスの上限時間は5分とし、超過時は終了要求後に必要なら強制終了する。
 - 使用上限、認証切れ、タイムアウトは`retry_waiting`、不正出力と一般実行失敗は`analysis_failed`として記録する。
 - 失敗Sourceは現在のQueueから隔離して後続を処理し、`retry_waiting`は自動再試行しない。
-- Source Bundleを作業ディレクトリにし、Claude Codeのツールを`Read`だけに限定して、セッションを保存せず構造化JSONを受け取る。
-- `summary.md`は固有Analysis Bundleへ原子的に保存し、ユーザー確認前は`proposed`として扱う。
-- Context Groupへ手動で関連付けたSourceは、原本を移動せずまとめてClaude Codeへ渡し、統合した解釈を生成する。
+- Source Bundle全体をClaude実行の作業ディレクトリにしない。選択済みの画像、テキスト、安全化済みURL、文字起こし、代表フレームだけをジョブ単位の一時staging directoryへ配置し、Claude Codeのツールを`Read`だけに限定して、セッションを保存せず構造化JSONを受け取る。
+- staging directoryに音声・動画原本と`localOpenUrl`を置かない。URLを含む画像はマスク済み派生画像、提供テキストはquery／fragmentを除去した安全化版を置く。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時は実行中Jobに属さない残存stagingを削除する。
+- 会社契約のClaude Codeへは明示取得・取り込みした業務情報を送信できるが、個人Claudeへは送信しない。パスワード入力画面、APIキー、Cookie、セッショントークンを表示する管理画面はユーザーが明示取得しない運用とし、万能な認証情報検出・マスク・fail-closedは実装しない。
+- 画像は送信前にローカルVision OCRでURLを検出し、URL領域をマスクした派生画像だけを渡す。`provided-text`はローカルでURL解析・安全化し、queryとfragmentを除去した`aiDisplayUrl`だけを渡す。前処理に失敗した場合は`needs_review`として自動送信しない。
+- 初回`summary.md`は固有Analysis SourceのRevisionとして原子的に保存し、ユーザー確認前は`proposed`として扱う。最新表示用`summary.md`はRevision履歴から再生成できる。
+- Groupから生成する際は、Group IDだけでなく実際に使用した個別Source IDを固定し、原本を移動せずClaude Codeへ渡す。
+- Analysis Sourceへの再分析では、現在のsummary、今回のテキスト・画像・URL追加、ユーザー指示を中心に渡す。音声、動画、PDFの追加は新規Source取り込みと前処理を経由する。
+- Analysis SourceのAI対話では、対象Sourceとユーザーが明示選択した追加Source／Groupだけを文脈にする。Groupは送信時に個別Source IDへ展開してsnapshot保存し、対話とsummary更新は追加専用で保存する。
+- AI対話、再分析、Group展開を含むすべてのClaude送信でADR-008を適用し、音声・動画原本ではなく前処理済み文字起こし・代表フレームだけを渡す。未前処理または前処理失敗のメディアが選択範囲にある場合はfail-closedで送信を止め、対象を表示する。
 - 各工程をProcessing Jobとして分離し、途中失敗から再開できるようにする。
 - 認証切れ、タイムアウト、不正な出力、アプリ終了などを失敗状態として残す。
 - 処理に失敗してもSource Bundleを保持し、ユーザーが手動で再実行できるようにする。

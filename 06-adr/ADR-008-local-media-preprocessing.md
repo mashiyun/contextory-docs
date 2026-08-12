@@ -10,10 +10,12 @@ Claude CodeへM4AやMOVをそのまま渡しても、バイナリを読み取れ
 
 ## Decision
 
-- 音声・動画SourceはClaude解析の前に必ずローカル前処理する。
+- 音声・動画Sourceは、初回Claude解析、Analysis Sourceの再分析、AI対話、Group展開を含むすべてのClaude送信の前に必ずローカル前処理する。
 - システム音声とマイク音声をrole別にPCMへ変換し、`whisper-cli`とローカルモデルで個別に文字起こしする。
 - 動画は音声文字起こしに加え、AVFoundationで最大12枚の代表フレームを生成する。
 - Claude CodeにはM4A/MOV原本を入力として列挙せず、文字起こし、代表フレーム、原文、ユーザー補足を渡す。
+- Claude実行時はADR-012の一時staging directoryへ、前処理済み文字起こしと代表フレームだけを配置する。
+- 選択範囲に未前処理または`preprocessing_failed`の音声・動画が1件でも含まれる場合は、対象を表示してfail-closedで送信を止める。別のSourceだけへ暗黙に範囲を縮小して送信しない。
 - モデルはLocal VaultやGitへ置かず、`~/Library/Application Support/Contextory/Models/`へ配置する。設定画面から推奨モデルを取得でき、ファイル選択によるオフライン配置、フォルダ表示、削除にも対応する。
 - モデルまたは`whisper-cli`がない、変換・文字起こしに失敗した場合は`preprocessing_failed`とし、Analysisを生成しない。
 - whisper.cpp v1.9.2をarm64・`GGML_NATIVE=OFF`・静的ライブラリ構成で再現ビルドし、`whisper-cli`とMITライセンス本文をReleaseアプリへ同梱する。会社MacのHomebrewへ依存しない。

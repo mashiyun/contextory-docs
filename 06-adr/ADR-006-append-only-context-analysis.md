@@ -1,7 +1,8 @@
-# ADR-006: Source・Context・Analysisを分離し派生結果を追加保存する
+# ADR-006: Source・Context・Analysisを分離し派生結果を追加保存する（legacy）
 
-- Status: Accepted
+- Status: Superseded by ADR-009
 - Date: 2026-08-11
+- Superseded by: [ADR-009](ADR-009-analysis-source-revisions.md)
 
 ## Context
 
@@ -9,11 +10,13 @@
 
 ## Decision
 
+このDecisionは既存実装の読み取り互換と来歴解釈のために残す。新規書き込み、正規ID、Revision、Group、Outputの正規モデルはADR-009に従う。
+
 - Sourceは不変の一次データとして個別に保持する。
-- Contextは1件以上のSource IDの組み合わせとして独立保存する。
-- 同じSourceを複数Contextから参照できる。
-- Analysisは解析目的ごとに固有IDを付け、Context配下または単体Analysis領域へ追加保存する。
-- 再解析は新しいAnalysisを作り、過去のAnalysisを上書きしない。
+- Contextは1件以上のSource IDの組み合わせとして独立保存する。新規設計では、関連Sourceを集める入れ物をGroupと呼び、Contextは移行期間の互換表現とする。
+- 同じSourceを複数Context／Groupから参照できる。
+- Analysisは解析目的ごとに固有IDを付け、Context／Group配下または単体Analysis領域へ追加保存する。
+- 解析目的または使用Source集合が独立する再解析は新しいAnalysisを作り、過去のAnalysisを上書きしない。同じAnalysis Sourceへの追加情報を伴う更新は、[ADR-009](ADR-009-analysis-source-revisions.md)に従い新Revisionとして保存する。
 - Analysisには根拠Source、Context、解析目的、Provider、モデル、生成日時、分類候補、レビュー状態を記録する。
 - AI分類と解析結果はユーザー確認前に`proposed`とする。
 - Context、Analysis、分類索引は永続ファイルからSQLiteへ再構築可能にする。
@@ -24,3 +27,5 @@
 - 過去のAI解釈と現在の解釈を比較できる。
 - ContextとAnalysisの選択・確認・修正UIが別途必要になる。
 - Local Vaultのファイル数は増えるが、原本の不要な複製は発生しない。
+- Analysis Sourceの同一性とRevision履歴の境界はADR-009で具体化する。
+- 既存`contexts/`および`analyses/`は読み取り可能なまま残すが、このADRに基づく新規書き込みは行わない。

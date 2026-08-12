@@ -24,7 +24,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 ### Source Bundle
 
 - Sourceごとに固有IDのフォルダを作成する。
-- 原本、`manifest.json`、文字起こし、AI要約、プレビュー、キーフレームを同じBundleへ保存する。
+- 原本、`manifest.json`、文字起こし、プレビュー、キーフレームを同じBundleへ保存する。Analysis／OutputはADR-009に従う派生Sourceとして同じ`sourceId`モデルへ保存する。
 - 画像、音声、動画は通常ファイルとして保存し、SQLite BLOBへ格納しない。
 - 原本を上書きしない。
 - 原本のSHA-256をManifestへ保存する。
@@ -34,7 +34,8 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 ### ManifestとMarkdown
 
 - `manifest.json`を機械可読な永続メタデータとする。
-- MarkdownをユーザーとClaude Codeが読み書きできる成果物とする。
+- Markdownをユーザーとアプリが確認・再利用できる成果物とする。Claude Codeには選択した送信対象だけを、ADR-012の一時staging directoryからRead限定で渡す。
+- Analysis Sourceの最新`summary.md`はRevision snapshotから再生成するmaterialized viewとし、Revisionの代替正本にしない。
 - AI生成内容とユーザー確認済み内容を状態で区別する。
 - Project／Taskとの確定した関連とレビュー結果を、SQLiteだけに閉じ込めない。
 - Manifest schemaには`schemaVersion`を持たせる。
@@ -51,7 +52,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 ### Positive
 
 - 原本とAI成果物を通常ファイルとして確認・回収できる。
-- Claude Codeが画像とMarkdownを直接扱える。
+- Claude Codeが一時staging directory内の選択済み画像とMarkdownを扱える。
 - SQLiteにより検索、関連付け、処理キューを効率的に実装できる。
 - DB破損時にSource Bundleから索引を再構築できる。
 - Project／Taskの変更で大容量ファイルを移動・複製せずに済む。

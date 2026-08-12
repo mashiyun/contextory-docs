@@ -18,6 +18,16 @@ ADRにはContext、Decision、Consequences、Statusを記載します。未決�
 - [ADR-003 macOSネイティブ・単一ユーザー構成](ADR-003-native-single-user-stack.md)
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](ADR-004-private-build-binary-delivery.md)
 - [ADR-005 システム音声とマイク音声を別原本として保存](ADR-005-separate-system-and-microphone-audio.md)
-- [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存](ADR-006-append-only-context-analysis.md)
-- [ADR-007 TaskとOutputの根拠来歴をID参照で保持](ADR-007-task-output-lineage.md)
 - [ADR-008 音声・動画をローカル前処理してからAIへ渡す](ADR-008-local-media-preprocessing.md)
+- [ADR-009 Source統一モデルとAnalysis Revisionを正規モデルにする](ADR-009-analysis-source-revisions.md)
+- [ADR-010 前面アプリ検知によるローカル録音確認を採用](ADR-010-local-foreground-recording-reminder.md)
+- [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](ADR-011-bundle-relationship-ownership.md)
+- [ADR-012 Claude実行には最小一時staging directoryを使用する](ADR-012-minimal-claude-staging.md)
+
+## Amended
+
+- [ADR-007 Taskの根拠来歴をID参照で保持](ADR-007-task-output-lineage.md)（ADR-009／011によりAmended）
+
+## Superseded
+
+- [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存（legacy）](ADR-006-append-only-context-analysis.md)（ADR-009によりSuperseded）

@@ -16,7 +16,7 @@ Contextoryは開発者本人だけが、自分のMacと会社Macで利用する�
 - 常駐UIは`MenuBarExtra`を基本とする。
 - 画面・音声取得にはScreenCaptureKitと必要なmacOS公式フレームワークを使用する。
 - ローカル保存はADR-001のSource BundleとSQLite Indexを使用する。
-- AI処理はローカルにインストールされた会社契約のClaude Codeを非対話実行する。
+- AI処理はローカルにインストールされた会社契約のClaude Codeを非対話実行する。これは業務情報の許可済み処理境界とし、個人Claudeへ業務情報を送信しない。URLのquery／fragmentを安全化し、パスワード入力画面や認証情報管理画面はユーザーが取得しない運用とする。
 - アプリは私用Macでのビルドを優先し、会社Macではビルド済みバイナリを実行する。直接配布が安定しない場合は、会社Macでのローカルビルドを許容する。
 - 一般公開、App Store対応、Windows対応、複数ユーザー、クラウドBackendを初期設計へ含めない。
 

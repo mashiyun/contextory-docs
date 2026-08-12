@@ -17,7 +17,9 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 自動グルーピングが誤っている場合はユーザーが修正できるようにする。
 - 案件が文脈を持ち、タスクが対応を持ち、Sourceが根拠になる。
 - 原本、AIによる解釈、ユーザー確認済み情報を分離する。
-- Sourceを複数Contextで再利用し、解析目的ごとのAnalysisを上書きせず追加する。
+- Input、Analysis、Outputを正規`sourceId`を持つSourceとして再利用し、Analysis更新は不変Revisionとして追加する。
+- Claude送信前にURLとメディアをローカル前処理し、送信時点の文脈とハッシュをローカル監査記録へ固定する。
+- Claude実行には選択済み送信対象だけを置く一時staging directoryを使い、会社契約Claudeを業務情報の許可済み処理境界とする。URLのquery／fragmentは安全化し、機密入力画面は取得しない運用とする。
 - 画像・PDF・テキストを手動取り込みし、AIのタスク分類候補を確認可能な状態で保存する。
 - 原本はローカルに保存し、Claude Codeへ即時送信する対象と範囲はユーザーが事前に許可する。
 - ユーザーが最低1日1回、要約とグルーピングを確認・修正して確定する。
@@ -30,6 +32,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [プロダクトビジョン](01-vision/product-vision.md)
 - [MVPスコープ](02-requirements/mvp-scope.md)
 - [Source・Group・Task・Output要件](02-requirements/source-group-task-output.md)
+- [録音忘れ防止要件](02-requirements/recording-reminder.md)
 - [安全・プライバシー原則](02-requirements/safety-principles.md)
 - [システム概要](03-design/system-overview.md)
 - [データモデル](03-design/data-model.md)
@@ -41,9 +44,13 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-003 macOSネイティブ・単一ユーザー構成](06-adr/ADR-003-native-single-user-stack.md)
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](06-adr/ADR-004-private-build-binary-delivery.md)
 - [ADR-005 システム音声とマイク音声を別原本として保存](06-adr/ADR-005-separate-system-and-microphone-audio.md)
-- [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存](06-adr/ADR-006-append-only-context-analysis.md)
-- [ADR-007 TaskとOutputの根拠来歴をID参照で保持](06-adr/ADR-007-task-output-lineage.md)
+- [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存（legacy）](06-adr/ADR-006-append-only-context-analysis.md)
+- [ADR-007 Taskの根拠来歴をID参照で保持](06-adr/ADR-007-task-output-lineage.md)
 - [ADR-008 音声・動画をローカル前処理してからAIへ渡す](06-adr/ADR-008-local-media-preprocessing.md)
+- [ADR-009 Source統一モデルとAnalysis Revisionを正規モデルにする](06-adr/ADR-009-analysis-source-revisions.md)
+- [ADR-010 前面アプリ検知によるローカル録音確認を採用](06-adr/ADR-010-local-foreground-recording-reminder.md)
+- [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](06-adr/ADR-011-bundle-relationship-ownership.md)
+- [ADR-012 Claude実行には最小一時staging directoryを使用する](06-adr/ADR-012-minimal-claude-staging.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
@@ -55,4 +62,4 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueに続き、Inputと分離したタスク整理画面の最初の縦切りとして、Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行を実装しました。次はSourceを蓄積するGroup整理、出典URL、Analysis Sourceに紐づくAI対話を優先し、その後に派生Source生成へ進みます。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueに続き、Inputと分離したタスク整理画面の最初の縦切りとして、Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行を実装しました。次の実装候補は、正規Sourceモデルへの段階移行、Group整理、Revision snapshot、URL安全化、原本閲覧、監査可能なAnalysis Source対話、前面アプリ検知による録音確認です。これらは未実装の仕様であり、既存`analyses/`／`contexts/`は読み取り互換として残します。

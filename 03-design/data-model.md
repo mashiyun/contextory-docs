@@ -2,6 +2,8 @@
 
 ## 暫定モデル
 
+将来の統一モデルでは、一次入力、Analysis、Outputをすべて同じSourceとして扱い、`analysis`や`output`はSourceの種別・属性で表現する。現行実装の独立Analysis Bundleは移行期間中の互換モデルとして維持する。詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)を参照する。
+
 ### Project
 
 顧客、製品、機能など、継続する業務文脈のまとまり。
@@ -9,6 +11,8 @@
 ### Task
 
 Project内で完了条件を持つ対応単位。担当、期限、状態、待ち先を持てる。
+
+Task Bundleの`task.json`には最低限、Task ID、タイトル、種別、状態、根拠Source ID、根拠Analysis ID、親Task ID、作成・更新日時、レビュー状態を保存する。同じSourceやAnalysisを複数Taskから参照でき、派生Task作成時も元Taskを上書きしない。
 
 ### Source
 
@@ -63,6 +67,8 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
 
 実際のスキーマは実装前に確定する。この例へ秘密情報や不要な個人情報を追加しない。
 
+画面または提供テキストから抽出した出典URLは、URL、抽出元Source ID、抽出方法、確認状態を持つ構造化属性として保存する。AIは存在しないURLを推測せず、認証token等を含む可能性があるURLは外部AIへ渡す前に安全化する。
+
 既存Source Manifestの`summary`は後方互換のため読み込めるが、新しい解析結果の保存先には使用しない。新規結果は固有Analysis Bundleへ保存する。
 
 Phase 1では`sourceApplication`へ取得時の前面アプリ名とBundle IDだけを保存する。メール件名、文書名、ウィンドウタイトルは自動メタデータへ含めない。既存Manifestに`sourceApplication`がない場合も読み込める後方互換を維持する。
@@ -80,6 +86,8 @@ Context GroupはSource Bundleを物理移動せずIDで関連付ける。手動�
 ### Analysis
 
 Source単体またはContextからAIが生成する追加専用の解析結果。Analysis ID、解析目的、根拠Source ID、Context ID、Provider、モデル、生成日時、分類候補、レビュー状態を持つ。再解析は既存結果を上書きせず、新しいAnalysis Bundleを追加する。
+
+将来はAnalysisを`kind: analysis`の派生Sourceへ統合する。AIとの追加対話は構造化した追加専用履歴を正本とし、閲覧用`summary.md`へ時系列で反映する。重要な回答は新しい派生Sourceとして確定できる。
 
 ### Summary
 
@@ -107,13 +115,21 @@ AIの提案に対するユーザーのConfirmed、Corrected、Deferred、Rejecte
 
 文字起こし、AI要約、Markdown生成、グルーピングなどの処理単位。実行待ち、実行中、完了、失敗、再試行回数、最後のエラーを持つ。運用状態はSQLiteで管理する。
 
+音声・動画では`pending_preprocessing`、`preprocessing_failed`、`analyzing`、`needs_review`を区別する。`derived/media/`へrole別文字起こし、動画代表フレーム、前処理索引を保存する。前処理成果物が存在しないメディアSourceからAnalysisを作成しない。
+
+モデル比較時は`derived/media/base/`、`derived/media/small/`のように音声モデル単位で分離する。Analysisは`sourceIds`に加えて`speechModel`を持ち、同じSourceから生成したbase版とsmall版を別Analysisとして保持する。
+
 自動実行と手動再実行を同じProcessing Jobモデルで扱い、実行契機を記録する。
 
 ## 基本関係
 
 - Projectは複数Taskを持つ。
+- Groupは複数Sourceを参照し、同じSourceは複数Groupへ所属できる。
+- Taskは複数Sourceおよび複数Groupを参照できる。
 - Sourceは複数Project・Taskに関連できる。
 - Sourceは複数Contextから参照でき、Contextは複数Analysisを持てる。
+- Taskは複数Source・Analysis・親Taskを来歴として参照できる。
+- 派生Output Taskは入力Task、Analysis、Sourceをすべて参照し、根拠へ逆引きできる。
 - Knowledge Itemは根拠となるSourceを参照する。
 - SummaryとGrouping ProposalはAI生成物であり、確定情報とは分離する。
 - AI生成内容とユーザー確認済み内容を別状態で保持する。
@@ -129,6 +145,7 @@ processing_jobs
 groups
 source_groups
 analyses
+tasks
 ```
 
 Library／Review Interfaceを実装する段階で次を追加候補とする。

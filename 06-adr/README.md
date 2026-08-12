@@ -19,3 +19,5 @@ ADRにはContext、Decision、Consequences、Statusを記載します。未決�
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](ADR-004-private-build-binary-delivery.md)
 - [ADR-005 システム音声とマイク音声を別原本として保存](ADR-005-separate-system-and-microphone-audio.md)
 - [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存](ADR-006-append-only-context-analysis.md)
+- [ADR-007 TaskとOutputの根拠来歴をID参照で保持](ADR-007-task-output-lineage.md)
+- [ADR-008 音声・動画をローカル前処理してからAIへ渡す](ADR-008-local-media-preprocessing.md)

@@ -25,6 +25,7 @@ Capture / Audio Recording / Screen Recording
 - Resident Capture Agent: macOSメニューバー、グローバルショートカット、キャプチャ、音声録音、画面録画、開始・停止、取得・処理状態。
 - Local Vault: 原本、Markdown、派生物の保存。
 - Processing Pipeline: 文字起こし、要約、Markdown生成、関連判定。
+- Media Preprocessor: PCM変換、ローカルWhisper文字起こし、AVFoundationによる動画代表フレーム抽出。成果物がない場合はAI解析へ進めない。
 - AI Adapter: ユーザーがSource単位で確認したデータをClaude Codeへ渡す境界と処理結果。
 - Grouping: Project／Task候補、関連根拠、確信度の生成。
 - Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。別途設計する。
@@ -39,6 +40,7 @@ Capture / Audio Recording / Screen Recording
 - Local Storage: Source BundleとSQLite Index
 - Claude integration: ローカルのClaude Codeを非対話実行
 - Runtime: macOSローカルプロセスのみ
+- Speech Runtime: Releaseアプリ同梱のarm64 `whisper-cli`。モデルはApplication Supportへ別配置する。
 - Preferred Build: 私用Mac
 - Delivery: ビルド済み`.app`を会社Macへ直接提供
 - Preferred Company Mac: アプリ実行とローカルVault保存のみ
@@ -72,6 +74,9 @@ Contextory Vault/
 │               ├── analysis.json
 │               └── summary.md
 ├── analyses/             # Source単体の派生Analysis
+├── tasks/
+│   └── <task-id>/
+│       └── task.json
 ├── exports/
 └── index/
     └── contextory.sqlite3
@@ -101,6 +106,8 @@ Contextory Vault/
 - 誤操作に備え、直近の取得を破棄できるようにする。
 - メニューバーに確定済みSource数とLocal Vault使用量を表示する。
 - 直近の取得の破棄は2段階確認後にSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。
+- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式をゴミ箱へ移動できる。Taskまたは別Analysisから参照中の場合は削除を禁止する。
+- 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。
 - 保存完了通知の権限は自動要求せず、ユーザーの明示操作で有効化する。
 - 常駐メニューにはInput操作と処理状態だけを表示する。
 - 補足、関連付け、手動再解析、結果詳細確認を常駐メニューへ置かない。
@@ -144,6 +151,9 @@ Contextory Vault/
 - 確定前の内容を確認済み知識や外部出力へ利用しない。
 - Sourceへの補足、複数Sourceの関連付け、解析目的を変えた再解析、解析結果・分類の詳細確認を担う。
 - Input操作は提供せず、常駐型Inputエージェントと責務を明確に分離する。
+- 最初の縦切りではAnalysis一覧・Markdown詳細・根拠Source表示・Task作成・Task来歴・再試行待ちの手動再実行を提供する。
+- Task詳細から根拠Analysis、Source、親Taskへ逆引きできる。
+- GitHub風の来歴グラフは後続UIとし、先にグラフ描画可能なID参照を欠損なく保存する。
 - 一覧管理・詳細レビューのUI形態は、常駐型取得エージェントのMVPとは分けて決定する。
 
 ## 未確定事項

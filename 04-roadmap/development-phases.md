@@ -57,7 +57,12 @@ Status: 完了（2026-08-11）
 - 実装済み: 貼り付けテキスト単体の一次Source登録。
 - 実装済み: Source／Context／Analysisの分離と、解析目的ごとの追加専用派生結果。
 - 実装済み: AIによるタスク主分類、タグ、確信度、理由の`proposed`保存。
-- 文字起こし。
+- 実装済み: `whisper-cli`のarm64静的ビルド、MITライセンス同梱、会社MacでのHomebrew非依存化。
+- 実装済み: 多言語baseモデルのApplication Support配置、SHA-256検証付き取得、手動配置、削除導線。
+- 実装済み: base／smallの併存・選択、モデル別前処理成果物、同一Sourceの追加専用再処理、Analysisへの音声モデル記録。
+- 実装済み: 音声・動画をClaudeへ渡す前のローカル文字起こし。
+- 実装済み: 動画代表フレーム抽出と、前処理不能時にAnalysisを生成しない制御。
+- 未確認: Contextoryで取得した実音声・実動画によるアプリ全体E2E。
 - システム音声・マイク音声の個別文字起こしとタイムスタンプ統合。
 - 実機でのClaude Code認証・非対話分析確認。
 - 使用モデルとルーティング理由の処理結果への記録。
@@ -66,6 +71,8 @@ Status: 完了（2026-08-11）
 
 ## Phase 3: Grouping Data
 
+- Groupの作成、名称変更、削除、Source追加・除外、複数Group所属。
+- Groupは関連情報を集めるだけとし、追加時にAnalysisやOutputを自動生成しない。
 - 案件・タスク候補への自動グルーピング。
 - グルーピング候補、根拠、確信度の保存。
 - 後続の手動修正を可能にする関連モデル。
@@ -74,15 +81,28 @@ Status: 完了（2026-08-11）
 
 ## Phase 4: Library and Daily Review
 
+- 実装済み: Inputと分離したタスク整理ウィンドウ。
+- 実装済み: Analysis一覧、Markdown詳細、根拠SourceのFinder表示。
+- 実装済み: AnalysisからのTask作成と、Source・Analysis・親Taskの来歴保存・逆引き。
+- 実装済み: `retry_waiting`／`analysis_failed`の一覧と解析Queueへの手動再投入。
+- 実装済み: Task Bundleから再構築可能なSQLite `tasks` Index。
 - 撮り溜めたコンテンツの一覧、検索、詳細表示。
 - 最低1日1回のReview Queue確認。
 - グルーピングとAI理解の修正・確定。
 - 修正履歴と確認済み文脈の蓄積。
 - Inputを持たないタスク整理画面として、解析結果表示、補足、関連付け、目的別再解析を提供する。
+- 画面または提供テキストから検出した出典URLの表示、確認、編集、リンク遷移。
+- Analysis Source詳細にClaudeへの質問・補足入力を設け、対話履歴を保存して`summary.md`へ反映する。
+- TaskとSource／Groupを多対多で関連付ける。
+- 複数Taskを選択し、出力目的・形式を指定した派生Output Taskを生成する。
+- 来歴をGitHub風のラインで表示するグラフUIを検討する。
 - 音声・動画の削除候補提示と、対象確認を伴う明示承認。期間による自動削除は行わない。
+- Analysis／Sourceの参照確認付きゴミ箱移動。
 
 ## Phase 5: Output Support
 
+- Source単体、複数Source、Groupから新しい派生Sourceを生成する。
+- 一次入力、Analysis、Outputを同じSourceモデルへ段階的に統合する。
 - Jira、Backlog、Slack向け下書き。
 - Excel、PowerPointなどの成果物生成。
 - 外部サービスへの反映はユーザー承認後に行う。

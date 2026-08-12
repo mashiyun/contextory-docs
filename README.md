@@ -29,6 +29,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 - [プロダクトビジョン](01-vision/product-vision.md)
 - [MVPスコープ](02-requirements/mvp-scope.md)
+- [Source・Group・Task・Output要件](02-requirements/source-group-task-output.md)
 - [安全・プライバシー原則](02-requirements/safety-principles.md)
 - [システム概要](03-design/system-overview.md)
 - [データモデル](03-design/data-model.md)
@@ -41,6 +42,8 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-004 私用Macでビルドして会社Macへバイナリ提供](06-adr/ADR-004-private-build-binary-delivery.md)
 - [ADR-005 システム音声とマイク音声を別原本として保存](06-adr/ADR-005-separate-system-and-microphone-audio.md)
 - [ADR-006 Source・Context・Analysisを分離し派生結果を追加保存](06-adr/ADR-006-append-only-context-analysis.md)
+- [ADR-007 TaskとOutputの根拠来歴をID参照で保持](06-adr/ADR-007-task-output-lineage.md)
+- [ADR-008 音声・動画をローカル前処理してからAIへ渡す](06-adr/ADR-008-local-media-preprocessing.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
@@ -52,4 +55,4 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2では、画像・PDF・テキストの手動取り込み、ユーザー補足、Source／Context／Analysisの分離、追加専用解析、AIタスク分類までを実装しました。次に会社Macでの実処理確認、文字起こし、自動グルーピングへ進みます。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueに続き、Inputと分離したタスク整理画面の最初の縦切りとして、Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行を実装しました。次はSourceを蓄積するGroup整理、出典URL、Analysis Sourceに紐づくAI対話を優先し、その後に派生Source生成へ進みます。

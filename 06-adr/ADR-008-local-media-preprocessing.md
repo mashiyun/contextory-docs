@@ -1,0 +1,31 @@
+# ADR-008: 音声・動画をローカル前処理してからAIへ渡す
+
+## Status
+
+Accepted
+
+## Context
+
+Claude CodeへM4AやMOVをそのまま渡しても、バイナリを読み取れない旨だけを記したAnalysisが生成され、Input整理として価値がない。業務情報と原本はローカル外へ出さず、AIが解釈できる入力を作る必要がある。
+
+## Decision
+
+- 音声・動画SourceはClaude解析の前に必ずローカル前処理する。
+- システム音声とマイク音声をrole別にPCMへ変換し、`whisper-cli`とローカルモデルで個別に文字起こしする。
+- 動画は音声文字起こしに加え、AVFoundationで最大12枚の代表フレームを生成する。
+- Claude CodeにはM4A/MOV原本を入力として列挙せず、文字起こし、代表フレーム、原文、ユーザー補足を渡す。
+- モデルはLocal VaultやGitへ置かず、`~/Library/Application Support/Contextory/Models/`へ配置する。設定画面から推奨モデルを取得でき、ファイル選択によるオフライン配置、フォルダ表示、削除にも対応する。
+- モデルまたは`whisper-cli`がない、変換・文字起こしに失敗した場合は`preprocessing_failed`とし、Analysisを生成しない。
+- whisper.cpp v1.9.2をarm64・`GGML_NATIVE=OFF`・静的ライブラリ構成で再現ビルドし、`whisper-cli`とMITライセンス本文をReleaseアプリへ同梱する。会社MacのHomebrewへ依存しない。
+- 多言語`base`（147,951,465 bytes）と`small`（487,601,967 bytes）を併存・選択でき、取得後にモデルごとの公式SHA-256を照合する。モデルはアプリへ同梱しない。
+- 文字起こしは`derived/media/<speech-model>/`へ分離し、同一Sourceを別モデルで再処理しても既存の前処理成果物とAnalysisを上書きしない。
+- Analysis Manifestへ使用した音声モデルを記録し、同じSourceから派生した結果を比較可能にする。
+- GPU初期化が利用環境に左右されないよう、MVPの文字起こしはCPU実行を既定とする。
+
+## Consequences
+
+- 読めないメディアについて無意味なAnalysisを作らなくなる。
+- 原本を保ったまま前処理を再実行できる。
+- モデル容量をアプリ更新と分離できる。
+- 初回セットアップで選択モデルの取得または手動配置が必要になる。`small`は精度向上と引き換えに約488 MBの保存容量と処理時間を要する。
+- 発話時刻の精密な統合は追加実装が必要である。

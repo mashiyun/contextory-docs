@@ -23,6 +23,7 @@ ADRにはContext、Decision、Consequences、Statusを記載します。未決�
 - [ADR-010 前面アプリ検知によるローカル録音確認を採用](ADR-010-local-foreground-recording-reminder.md)
 - [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](ADR-011-bundle-relationship-ownership.md)
 - [ADR-012 Claude実行には最小一時staging directoryを使用する](ADR-012-minimal-claude-staging.md)
+- [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](ADR-013-approved-external-publication.md)
 
 ## Amended
 

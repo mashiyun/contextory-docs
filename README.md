@@ -26,6 +26,9 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 撮り溜めたコンテンツの一覧管理・詳細レビューUIは、常駐型取得エージェントとは別に設計する。
 - 常駐メニューはInput専用、将来のタスク整理画面は確認・補足・関連付け・再解析専用とし、相互の操作を混在させない。
 - 将来のExcel、PowerPoint、Jira、Backlog、Slack出力は確認済み文脈から生成する。
+- Analysis一覧は具体的タイトル、状態、短い内容プレビューで内容を判別できるようにする。同名には日時と短縮Source IDを補助表示し、未生成時は種別・日時・短縮IDを暫定表示する。ユーザー確定タイトルはAIが上書きしない（将来実装）。
+- Sourceは既定で保護ロックし、Manifestを正本として扱う。削除は参照整合性確認、一時ロック解除確認、削除確認を通してmacOSのゴミ箱へ移動し、失敗・取消・異常終了時は再ロックする（将来実装）。
+- 外部Output公開は、承認時に固定したMarkdown派生SourceをJira、Confluence、Backlog Adapterへ変換する将来設計とする。送信識別子・結果・添付状態を保存し、結果不明の自動再作成は行わない。資格情報はアプリ内部でmacOS Keychainからのみ解決し、設定、Vault、URL、プロセス、ログ、診断、Gitへ出さない。
 
 ## 文書一覧
 
@@ -33,6 +36,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [MVPスコープ](02-requirements/mvp-scope.md)
 - [Source・Group・Task・Output要件](02-requirements/source-group-task-output.md)
 - [録音忘れ防止要件](02-requirements/recording-reminder.md)
+- [録音入力選択・無音警告要件](02-requirements/recording-input-monitoring.md)
 - [安全・プライバシー原則](02-requirements/safety-principles.md)
 - [システム概要](03-design/system-overview.md)
 - [データモデル](03-design/data-model.md)
@@ -51,6 +55,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-010 前面アプリ検知によるローカル録音確認を採用](06-adr/ADR-010-local-foreground-recording-reminder.md)
 - [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](06-adr/ADR-011-bundle-relationship-ownership.md)
 - [ADR-012 Claude実行には最小一時staging directoryを使用する](06-adr/ADR-012-minimal-claude-staging.md)
+- [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](06-adr/ADR-013-approved-external-publication.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
@@ -62,4 +67,4 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueに続き、Inputと分離したタスク整理画面の最初の縦切りとして、Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行を実装しました。次の実装候補は、正規Sourceモデルへの段階移行、Group整理、Revision snapshot、URL安全化、原本閲覧、監査可能なAnalysis Source対話、前面アプリ検知による録音確認です。これらは未実装の仕様であり、既存`analyses/`／`contexts/`は読み取り互換として残します。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）は実装済みです。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Analysis一覧・Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。

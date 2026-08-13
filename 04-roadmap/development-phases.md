@@ -80,11 +80,12 @@ Status: 完了（2026-08-11）
 - 単純な処理をSonnet、複雑な複数Source処理をOpus候補とする自動ルーティングの検討。
 - 処理失敗時の状態保持と手動再実行。
 
-## Phase 3: Grouping Data
+## Phase 3: Canonical Source and Grouping Data
 
-- Input、Analysis、Outputを同じSourceとして扱う正規`sourceId`来歴モデルを実装する。
-- `analyses/`／`contexts/`の読み取り互換、legacy `analysisId`から`sourceId`への対応、Revision 1 snapshot検証、Bundle走査での再索引を満たしてから新規書き込みを正規モデルへ切り替える。
-- 既存Analysisへの正規`sourceId`とRevision 1割り当ての検証後にのみ、Revisionの新規書き込みを開始する。
+- 実装済み: 新規Analysisを`kind: analysis`の正規`sourceId`を持つ派生Sourceとして保存する基盤。Output生成はPhase 5の未実装範囲とする。
+- 実装済み: `analyses/`／`contexts/`の読み取り互換、legacy `analysisId`から`sourceId`への対応、Revision 1 snapshot検証、Bundle走査によるSQLite再索引、新規Analysis書き込みのfail-closed gate。
+- 実装済み: 新規Analysis staging Jobの復旧要求保存、同一`operationId`の重複防止、未確定の複数Source Analysisを通常Input Queueへ分解しない復旧。
+- 未実装: 既存Analysisへの正規`sourceId`とRevision 1割り当てを実利用Vaultで実行する運用と、Revisionの新規書き込みUI。
 - Groupの作成、名称変更、削除、Source追加・除外、複数Group所属。
 - Groupは関連情報を集めるだけとし、追加時にAnalysisやOutputを自動生成しない。
 - Groupから派生Sourceを生成する前に、実際に使用する個別Sourceを明示・固定する。
@@ -118,12 +119,20 @@ Status: 完了（2026-08-11）
 - 来歴をGitHub風のラインで表示するグラフUIを検討する。
 - 音声・動画の削除候補提示と、対象確認を伴う明示承認。期間による自動削除は行わない。
 - Analysis／Sourceの参照確認付きゴミ箱移動。
+- 新規・既存Sourceの既定保護ロック。Group／Task／派生Source／外部公開記録を含む「参照確認→一時ロック解除の確認→削除確認→macOSのゴミ箱へ移動」の順で削除する。
+- Analysis一覧の具体的タイトル、分類・日時・状態、短い内容プレビュー。タイトル根拠・確認状態・ユーザー修正の保存。
+- Analysis詳細上部の「あなたの対応」、自分の対応／他者への依頼／返答待ちの独立表示、Action根拠・期限候補・状態の保存、確認済みActionからのTask作成。
 - 初期無効のSlack／Teams録音確認を提供する。前面20秒継続、アプリ別既定60分cooldown、15分snooze、60分抑制、当日抑制、対象アプリ・閾値・cooldown設定を実装する。自動録音と会議・マイク・UI内容の精密検知は行わない。
+- 未実装の次期項目として、選択中マイク名、開始前／録音中の入力レベル表示、マイク／システム音声を分けた無音・切断候補の警告を提供する。切断・権限喪失時は取得済みマイク原本を確定し、システム音声を可能な限り継続保存する。無断デバイス切替と自動停止は行わない。
 
 ## Phase 5: Output Support
 
 - Source単体、複数Source、Groupから新しい派生Sourceを生成する。
 - 派生Sourceを後続の生成に再利用し、親Sourceと実際に使用した個別Source IDを逆引きできるようにする。
-- Jira、Backlog、Slack向け下書き。
+- Markdownを共通成果物として、Jira、Confluence、Backlog向けのAdapterで各サービス形式へ変換する。
+- Jira Issue、Confluence Page、Backlog Issue／Wikiの公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。
+- 元Markdownの添付、公開先、remote ID／Issue Key、URL、送信本文、添付、元Source、使用モデル、結果の監査保存。
+- 作成成功後の添付失敗は既存remote IDに限定して再実行し、結果不明の新規作成は自動再試行しない。
+- API Token等をmacOS Keychainへ保存し、アプリ内部だけで参照を解決する。UserDefaults／plist、Vault、Markdown、ログ、Git、URL query、プロセス引数、環境変数、診断、クラッシュ情報、HTTPデバッグ出力へ保存・出力しない。
 - Excel、PowerPointなどの成果物生成。
-- 外部サービスへの反映はユーザー承認後に行う。
+- 外部サービスへの反映はユーザー承認後に行う。Jira／ConfluenceのCloud・Data Center種別とBacklogの会社環境は未決のため、Adapter実装前に公式資料で確認する。

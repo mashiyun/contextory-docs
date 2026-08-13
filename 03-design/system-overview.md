@@ -15,9 +15,11 @@ Capture / Audio Recording / Screen Recording
                     ↓
  Project / Task candidate grouping
                     ↓
-       Review data pending confirmation
+        Review data pending confirmation
                     ↓
         Confirmed Project / Task context
+                    ↓
+ Markdown derived Output Source → user approval → External Output Adapter
 ```
 
 ## 境界
@@ -33,6 +35,9 @@ Capture / Audio Recording / Screen Recording
 - Analysis Revision: 同じAnalysis Sourceへのテキスト・画像・URL追加、再分析、summary差分、過去summaryを追加専用で管理する境界。
 - AI Invocation Audit: 再分析・対話・Group展開の送信時点のRevision、summary、Source／派生物ハッシュ、Group展開結果、モデル、prompt schema、結果状態をローカルで固定記録する。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
+- Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
+- Source Protection: Source Manifestを正本として既定で保護ロックし、参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。SQLiteは再構築可能な索引に限定する。
+- External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
 - Grouping: Project／Task候補、関連根拠、確信度の生成。
 - Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。別途設計する。
 - Docs: プロダクト仕様と意思決定の正本。
@@ -103,9 +108,11 @@ Contextory Vault/
 - Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
 - 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDを持つ。
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
+- Analysisの具体的タイトル、Action、Source保護ロック、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
 - 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
 - Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列とSQLiteはlegacy cacheまたは再構築可能な索引である。
 - `manifest.json`は機械可読な永続メタデータを持つ。
+- Sourceの保護状態はManifestを正本とし、欠落・不正・未知値を`locked`として扱う。SQLiteの保護状態はBundle走査から再構築する。
 - MarkdownはユーザーとClaude Codeが確認・再利用できる成果物とする。
 - SQLiteは検索、関連、処理状態、再試行、レビューキュー用のローカル索引とする。
 - SQLiteの永続情報は可能な限りSource Bundleから再構築可能にする。
@@ -123,8 +130,8 @@ Contextory Vault/
 - 保存中、AI処理中、完了、失敗を小さな状態表示またはOS通知で示す。
 - 誤操作に備え、直近の取得を破棄できるようにする。
 - メニューバーに確定済みSource数とLocal Vault使用量を表示する。
-- 直近の取得の破棄は2段階確認後にSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。
-- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式をゴミ箱へ移動できる。Taskまたは別Analysisから参照中の場合は削除を禁止する。
+- Sourceは既定で保護ロックする。削除は参照整合性確認、一時ロック解除確認、削除確認を通過してからSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。参照検出、キャンセル、失敗、異常終了、ゴミ箱移動成功時には一時解除を自動再ロックする。恒久的な手動ロック解除とは別に扱う。
+- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式を削除候補として表示できる。Task、Group、別Analysis、派生Source、外部公開記録から参照中の場合は削除を禁止する。
 - 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。
 - 保存完了通知の権限は自動要求せず、ユーザーの明示操作で有効化する。
 - 常駐メニューにはInput操作と処理状態だけを表示する。
@@ -132,6 +139,9 @@ Contextory Vault/
 - 判定は、録音中、当日抑制、15分snooze、60分cooldown、表示可能の順に評価する。`nextEligibleAt`到達時は`suppressionReason`を自動解除し、`today_suppressed`も翌日のローカル日付開始時刻に解除する。Slack／Teamsが20秒継続して前面で、表示可能な場合だけパネルを出す。
 - 操作は録音開始、15分後に通知、今回は通知しない（60分抑制）、今日は通知しないとする。対象アプリ、20秒閾値、60分cooldownは設定で変更できる。
 - 録音確認の検知・設定・cooldownはローカルに限定し、前面アプリの検知だけを初期対象とする。
+- 録音開始前は選択中マイク名と短時間の入力レベルを表示する。前回選択のデバイスが使えない場合は、別デバイスへ黙って切り替えず、録音開始を保留して選択を求める。
+- 録音中はマイクとシステム音声を別々に監視する。およそ5〜10秒の無音、USBマイク切断、入力停止は警告候補とし、「マイクを選択」「システム設定を開く」「録音停止」「継続」を表示する。自動停止は行わない。突然の切断・権限喪失では取得済みマイク原本を確定し、欠落開始・終了時刻、原因、使用デバイスをManifestへ記録する。システム音声は可能な限り継続保存し、別マイクへ無断で切り替えない。
+- 録音中のマイク変更は、現在の区間を安全に保存してから、新しい選択で明示的に再開する。
 - 補足、関連付け、手動再解析、結果詳細確認を常駐メニューへ置かない。
 - 権限、Claudeモデル、診断、Local Vault表示は「設定・診断」サブメニューへ集約する。
 
@@ -180,6 +190,9 @@ Contextory Vault/
 - Sourceへの補足、複数Sourceの関連付け、解析目的を変えた再解析、解析結果・分類の詳細確認を担う。
 - Input操作は提供せず、常駐型Inputエージェントと責務を明確に分離する。
 - 最初の縦切りではAnalysis一覧・Markdown詳細・根拠Source表示・Task作成・Task来歴・再試行待ちの手動再実行を提供する。
+- Analysis一覧は具体的タイトル、分類・日時・状態、短いプレビューを表示する。同一タイトルには日時と短縮Source IDを補助表示し、未生成時は種別・日時・短縮Source IDを暫定表示する。タイトルの根拠・確認状態を保存し、ユーザー確定タイトルをAIが上書きしない。
+- Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
+- Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。
 - Task詳細から根拠Analysis、Source、親Taskへ逆引きできる。
 - GitHub風の来歴グラフは後続UIとし、先にグラフ描画可能なID参照を欠損なく保存する。
 - 一覧管理・詳細レビューのUI形態は、常駐型取得エージェントのMVPとは分けて決定する。

@@ -78,7 +78,9 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
   "sanitizedProvidedText": "derived/sanitized/provided-text.md",
   "userNotes": "user-notes.md",
   "processingStatus": "needs_review",
-  "reviewStatus": "proposed"
+  "reviewStatus": "proposed",
+  "protection": {"state": "locked"},
+  "favorite": false
 }
 ```
 
@@ -87,6 +89,10 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
 画面または提供テキストから抽出した出典URLは、安全化URL、抽出元Source ID、抽出方法、確認状態を持つ構造化属性として保存する。AIは存在しないURLを推測せず、認証token等を含む可能性がある値を外部AI、ログ、Markdownへ渡さない。
 
 既存Source Manifestの`id`、`summary`、`taskIds`、`groupIds`は後方互換のため読み込める。新規書き込みでは`sourceId`を使い、`taskIds`と`groupIds`を更新しない。新規のAnalysis SourceはRevision Bundleの最新投影として`summary.md`を持ち、構造化Revision履歴から再生成する。既存`analyses/`は新規結果の保存先とせず、対応するAnalysis Sourceの読み取り互換表現とする。
+
+`protection`はSource Manifestの正本フィールドである。`state`が欠落・不正・未知値なら必ず`locked`として読む。SQLiteの保護状態はBundle走査から再構築できる索引であり、削除可否の正本ではない。`favorite`は既定`false`の独立属性であり、保護ロックや削除許可を示さない。
+
+既存Bundleへのbackfillは、一時ファイルを検証してから同一filesystem上でManifestを原子的に置換する、冪等な操作とする。backfillが失敗・中断・未検証なら、そのBundleは削除不可とする。通常の恒久的な手動ロック解除と、削除操作だけに用いる一時解除は別の状態として記録する。一時解除は参照確認後に削除確認のためだけに有効にし、参照検出、キャンセル、失敗、異常終了、またはゴミ箱移動の成功時には自動的に`locked`へ戻す。
 
 Phase 1では`sourceApplication`へ取得時の前面アプリ名とBundle IDだけを保存する。メール件名、文書名、ウィンドウタイトルは自動メタデータへ含めない。既存Manifestに`sourceApplication`がない場合も読み込める後方互換を維持する。
 
@@ -114,11 +120,15 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 
 AIとの対話は構造化した追加専用履歴を正本とする。summaryを更新する対話は対応Revisionへ参照を残す。重要な回答は新しい派生Sourceとして確定できる。
 
+Analysis一覧表示用に、Analysis Sourceは`presentationTitle`を持てる。これは分類とは別の短い具体的タイトルであり、本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態、ユーザー修正の有無を保存する。ユーザー修正したタイトルは、明示的な再生成操作なしにAIが上書きしない。同一タイトルでは日時と短縮Source IDを補助表示し、未生成時は「種別・日時・短縮Source ID」を暫定表示する。この暫定表示はユーザー確定タイトルではない。
+
 ### Analysis Revision
 
 Analysis Sourceに属する不変の再分析履歴。`revisionNumber`、作成日時、理由、追加情報（テキスト、画像、URL）、追加画像Source ID、追加情報種別、ユーザー指示、使用Provider／モデル、確認状態、使用Source ID、直前Revisionとの差分、summary本文の不変スナップショット、`summaryPath`、`summarySha256`を持つ。summary本文を持たないRevision、またはハッシュだけのRevisionは作らない。
 
 最新の`summary.md`は最新Revisionの保存済みsnapshotから生成するmaterialized viewであり、正本ではない。すべてのRevisionを構造化して保存し、過去summary、差分、根拠Sourceを詳細画面で逆引きできるようにする。
+
+RevisionはSummary本文から抽出した`actionItems`を持てる。各Actionは内容、種別（`self_action`、`delegated_request`、`waiting_response`）、期限候補、状態、根拠Source ID、抽出元Revision ID、確認状態、作成済みTask IDを持つ。Actionがないことも構造化して表せるため、UIは「現在必要な対応はありません」と表示できる。ActionからのTask作成は明示操作であり、Action自体はTaskの正本ではない。
 
 ### Source Addition
 
@@ -145,6 +155,16 @@ Groupの後日変更やRevision追加で過去の送信文脈を変えないた�
 ### AI Staging
 
 Claude実行ごとに作る一時ディレクトリ。`jobId`と`createdAt`を持ち、選択済みの通常画像、テキスト、安全化済みURL、文字起こし、代表フレームを配置する。URLを含む画像はマスク済み派生画像を使う。Source Bundle全体、音声・動画原本、`localOpenUrl`は配置しない。stagingのファイル一覧と入力ハッシュは監査記録へ残せるが、staging自体は永続化せず、処理完了、失敗、タイムアウト、中断後に削除する。次回起動時は、実行中Jobへ属さない残存stagingを削除する。
+
+### Recording Input Preference and Monitoring
+
+ローカル設定には、選択済みマイクの安定識別子、表示名、選択日時を保存する。各録音Sourceには、実際に使用した入力デバイス、マイク／システム音声ごとのレベル状態、無音・切断・入力停止の警告イベント、録音区間の開始・停止時刻を保存できる。突然の切断・権限喪失では、取得済みのマイク原本を確定し、マイク欠落の開始・終了時刻、原因、使用デバイスをRecording Source Manifestへ記録する。システム音声は可能な限り継続保存し、未接続デバイスを別デバイスへ無断で置換しない。設定は次回選択用であり、Sourceの実績メタデータを上書きしない。
+
+### External Publication
+
+Markdown派生Output Sourceの外部公開記録。公開先サービス、対象種別、Project／Space、remote ID／Issue Key、URL、送信日時、送信本文の不変snapshot、添付、元Source ID、使用モデル、承認状態、送信結果を持つ。
+
+承認Recordは、`publicationId`、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を不変に固定する。固定対象のいずれかが変われば、その承認は無効で再承認を要求する。送信前には`publicationId`、`attemptId`、`idempotencyKey`、`requestFingerprint`を永続化し、送信後はremote ID／Issue Key、URL、照合結果、outcomeを追記する。添付ごとにSHA-256、送信状態、remote attachment IDを保存し、失敗した添付だけを再送できる。作成結果不明は`outcome_unknown`として保存し、新規作成の自動再試行を禁止する。資格情報そのものはこの記録にもSource Bundleにも保存しない。
 
 ### Summary
 
@@ -188,6 +208,8 @@ AIの提案に対するユーザーのConfirmed、Corrected、Deferred、Rejecte
 - Analysis Sourceは複数の不変Revisionと追加専用の対話履歴を持つ。
 - Taskは複数Source・Analysis・親Taskを来歴として参照できる。
 - 派生Output Sourceは入力Task、Analysis Source、親Sourceを来歴として参照し、根拠へ逆引きできる。既存の派生Output Taskは読み取り互換として扱う。
+- Actionは抽出元Revisionと根拠Sourceを参照し、確認済みの場合だけ明示操作でTaskを作成できる。
+- External PublicationはMarkdown派生Output Sourceを参照し、公開先remote IDと結果を保存する。remote IDは削除前の参照整合性確認対象である。
 - Knowledge Itemは根拠となるSourceを参照する。
 - SummaryとGrouping ProposalはAI生成物であり、確定情報とは分離する。
 - AI生成内容とユーザー確認済み内容を別状態で保持する。
@@ -207,6 +229,13 @@ revision_additions
 provenance_urls
 analysis_conversations
 recording_reminder_state
+recording_input_preferences
+recording_input_events
+source_protection_events
+external_publications
+publication_approvals
+publication_attempts
+publication_attachments
 tasks
 task_sources
 task_groups

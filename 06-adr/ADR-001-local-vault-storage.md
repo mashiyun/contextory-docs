@@ -34,6 +34,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 ### ManifestとMarkdown
 
 - `manifest.json`を機械可読な永続メタデータとする。
+- Sourceの削除保護ロック`protection`はManifestを唯一の正本とする。`protection`の欠落・不正・未知値は`locked`として読む。SQLiteはSource保護ロックの正本を保持せず、保持できる「ロック」は処理中の排他制御・一時的な実行状態だけを指す。
 - Markdownをユーザーとアプリが確認・再利用できる成果物とする。Claude Codeには選択した送信対象だけを、ADR-012の一時staging directoryからRead限定で渡す。
 - Analysis Sourceの最新`summary.md`はRevision snapshotから再生成するmaterialized viewとし、Revisionの代替正本にしない。
 - AI生成内容とユーザー確認済み内容を状態で区別する。
@@ -45,7 +46,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 - Source検索、関連付け、処理キュー、再試行、レビュー対象抽出、全文検索にSQLiteを使用する。
 - SQLiteを画像、音声、動画の保存先にしない。
 - 永続的な情報は可能な限りSource Bundleから再構築できるようにする。
-- 実行待ち、処理中、ロック、再試行回数などの一時的な運用状態はSQLiteのみで保持できる。
+- 実行待ち、処理中、処理中の排他制御、一時的な実行状態、再試行回数などの運用状態はSQLiteのみで保持できる。これらはManifestの`protection`を置き換えず、Source削除可否を決定しない。
 
 ## Consequences
 
@@ -68,6 +69,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 
 - 原本保存をSQLite更新より優先し、索引更新失敗で原本を失わない。
 - ManifestとMarkdownは一時ファイルからの置き換えで更新する。
+- 既存Sourceへ保護状態を導入するbackfillは、検証済み一時Manifestを同一filesystem上で原子的に置換する冪等操作とする。失敗・中断・未検証のBundleは削除不可とする。
 - SQLite DB、WAL、SHM、Source BundleをGit管理しない。
 - Local Vaultはクラウド同期フォルダとアプリリポジトリの外へ配置する。
 - SQLite削除後にSource Bundleを走査して再索引できる検証を用意する。

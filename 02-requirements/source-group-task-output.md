@@ -2,7 +2,7 @@
 
 ## Status
 
-次回実装候補。2026-08-12時点では仕様整理のみで、未実装。
+正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧改善、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装の将来仕様である。
 
 ## Source中心モデル
 
@@ -51,6 +51,39 @@ Analysis Sourceは詳細画面では同じSourceを継続して更新するよ�
 - 任意のRevisionについて、保存済みのsummary本文、`summaryPath`、SHA-256を確認できる。
 - 最新`summary.md`を削除または再生成する場合でも、最新Revisionの保存済みsummaryから同じ内容を復元できる。
 
+## Analysis一覧と具体的タイトル
+
+Analysis一覧は分類名だけをタイトルにしない。AIはAnalysis内容から、分類が重複しても内容を判別できる短い具体的タイトルを提案する。
+
+- 一覧には具体的タイトル、分類・生成日時・確認状態、短い内容プレビューを表示する。
+- タイトルはAnalysis Sourceの表示メタデータとして保存し、タイトル本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態を持つ。
+- ユーザーはAI提案タイトルを確認、修正、却下できる。ユーザー修正後のタイトルを、後続のAI再分析で黙って上書きしない。
+- 分類は検索・絞り込みに使う属性であり、具体的タイトルの代替にしない。
+- 同一の具体的タイトルが並ぶ場合は、日時と短縮Source IDを補助表示して区別する。
+- タイトル未生成または生成に十分な内容がない場合は、推測せず「種別＋日時＋短縮Source ID」を暫定表示し、`proposed`として確認対象にする。
+
+### 受入条件
+
+- 同じ分類のAnalysisが連続しても、タイトルとプレビューから内容を識別できる。
+- 同じタイトルまたは未生成タイトルでも、日時と短縮Source IDから個別のAnalysisを識別できる。
+- 任意のタイトルについて、生成根拠、生成モデル、確認状態、ユーザー修正の有無を確認できる。
+
+## Actionsの強調とTask化
+
+Analysis Source詳細の上部には「あなたの対応」を大きく表示し、Summary本文とは別にActionを表示する。ActionはAIの提案であり、確認前に完了・確定として扱わない。
+
+- Summaryの構造化出力からActionだけを独立抽出し、自分の対応、他者への依頼、返答待ちを区別する。
+- Actionは内容、種別、期限候補、状態、根拠Source ID、抽出元Revision ID、確認状態を持つ。
+- 自分の対応、他者への依頼、返答待ちは表示上も区別する。
+- Actionがない場合は「現在必要な対応はありません」と表示する。
+- 将来、確認済みActionからTaskを作成できるよう、Actionから作成したTask IDを保存できる設計にする。Task作成は別操作であり、AIが自動作成しない。
+
+### 受入条件
+
+- Summaryの本文を読まなくても、現在の対応・依頼・返答待ちを区別して確認できる。
+- Actionの根拠となるRevisionとSourceへ逆引きできる。
+- ActionがないAnalysisでは空の対応リストではなく所定のメッセージを表示する。
+
 ## 原本閲覧と追加可能範囲
 
 Analysis Sourceの詳細画面から、根拠となる原本へ戻れることを必須とする。
@@ -60,6 +93,27 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - 原本、追加画像、追加テキストの保存場所はFinderで表示できる。
 - Revisionに追加した画像とテキストも、追加情報ごとに閲覧できる。
 - URLは出典として追加できるが、URL自体から自動取得・自動解析はしない。
+
+## Source削除防止ロック
+
+新規・既存を問わず、すべてのSourceは既定で保護ロックする。お気に入りは将来の絞り込み用であり、保護ロックとは独立した状態である。
+
+- 保護ロック中は、当該Sourceの「Analysisと元データの削除」を実行できない。
+- `protection`の欠落、不正値、未知値は必ず`locked`として読み、削除を許可しない。Source Manifestを保護状態の唯一の正本とし、SQLiteはBundle走査で再構築できる索引に限定する。
+- 既存Sourceは保護状態を`locked`へatomicかつ冪等にbackfillする。backfillが未完了・失敗・検証不能なSourceは削除を許可しない。
+- 削除の順序は「参照確認 → 削除操作中だけの一時ロック解除確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
+- 恒久的な手動ロック解除は、削除操作中の一時解除とは別操作・別状態とする。一時解除は削除成功、参照検出、キャンセル、失敗、異常終了のいずれでも自動的に`locked`へ戻す。
+- ロック解除・削除は通常の閲覧、再分析、Task作成から視覚的に分離した危険操作領域に置く。
+- 削除前にTask、Group、別Analysis、派生Source、外部公開記録からの参照整合性を確認し、参照中なら削除を中止して参照先を表示する。
+- 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
+- 既存Sourceへの導入時も既定を保護ロックとし、Manifestへのbackfill完了まではロック解除済みと推測しない。
+
+### 受入条件
+
+- ロック中のSourceは削除操作を実行できない。
+- 削除にはロック解除確認と削除確認の両方が必要である。
+- 参照中のSourceはゴミ箱へ移動せず、影響する参照を確認できる。
+- backfill失敗、削除キャンセル、削除失敗、異常終了後に、Sourceが削除可能な解除状態として残らない。
 
 ## Task
 
@@ -137,3 +191,26 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 4. AI対話: 選択済みSource／Groupだけの一時staging、監査履歴、Revisionを介した`summary.md`反映を実装する。
 5. Task関連: TaskとSource／Groupの多対多関連、`task.json`のlink正本、逆引き索引を実装する。
 6. 派生Source生成: Source単体・複数Source・Groupから派生Sourceを生成し、後続生成へ再利用する。
+7. Review改善: Analysis具体的タイトル、Actionの独立表示、保護ロック付き削除を実装する。
+8. 外部Output公開: 承認画面、Markdown添付、Adapter、公開監査と復旧を実装する。
+
+## 外部Output公開基盤
+
+外部公開は将来機能であり、まずSource単体・複数Source・GroupからMarkdownの派生Output Sourceを生成する。Markdownを共通成果物とし、Jira、Confluence、BacklogのAdapterが各サービスの要求形式へ変換する。詳細な安全境界は[ADR-013](../06-adr/ADR-013-approved-external-publication.md)に従う。
+
+- 対象はJira Issue、Confluence Page、Backlog Issue／Wikiの将来対応とする。
+- AI生成後は、ユーザーが本文、Project、Space、種別、添付を確認して明示承認した場合だけ公開する。AI生成、下書き保存、承認、送信は別状態とする。
+- 承認時には`publicationId`、公開先、Project／Space、変換後payload、本文の不変snapshot、添付一覧と各SHA-256、承認日時を固定する。固定した項目のいずれかが変わった場合は承認を失効させ、再承認を必須とする。
+- 公開本文に加え、元Markdownファイルを添付できるようにする。
+- 送信前に`publicationId`、`attemptId`、`idempotencyKey`、`requestFingerprint`を永続化する。公開記録は対象Markdown派生Sourceに紐づけ、サービス、remote ID／Issue Key、URL、照合結果、outcome、送信日時、送信本文のsnapshot、添付、元Source ID、使用モデル、結果状態を保存する。
+- API Tokenなどの資格情報はmacOS Keychainだけへ保存し、Keychain参照はアプリ内部だけで解決する。UserDefaults／plist、Local Vault、Markdown、ログ、Git、URL query、プロセス引数、環境変数、診断、クラッシュ情報、HTTPデバッグ出力へ保存・出力しない。
+- 添付ごとにSHA-256、送信状態、remote attachment IDを保存する。作成成功後に添付だけ失敗した場合は、作成済みremote IDを保持し、失敗した添付だけを再実行できる。
+- 作成結果が不明な場合は、新規作成を自動再試行しない。ユーザーがremote側を確認してから、既存remoteへの紐付けまたは明示的な再作成を選ぶ。
+
+### 受入条件
+
+- ユーザー承認なしに外部サービスへ作成、更新、添付を行わない。
+- 承認済みの公開要求であっても、固定した宛先、payload、本文、添付のいずれかが変われば送信せず再承認を求める。
+- 資格情報がUserDefaults／plist、Vault、Markdown、ログ、Git、URL query、プロセス引数、環境変数、診断、クラッシュ情報、HTTPデバッグ出力に現れず、アプリ内部のKeychain参照だけで解決される。
+- 添付失敗時に新しいIssue／Pageを重複作成せず、既存remote IDに対して添付だけを再実行できる。
+- 通信結果不明時に自動で新規作成を繰り返さない。

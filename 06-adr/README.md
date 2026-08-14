@@ -24,6 +24,7 @@ ADRにはContext、Decision、Consequences、Statusを記載します。未決�
 - [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](ADR-011-bundle-relationship-ownership.md)
 - [ADR-012 Claude実行には最小一時staging directoryを使用する](ADR-012-minimal-claude-staging.md)
 - [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](ADR-013-approved-external-publication.md)
+- [ADR-014 Transcript訂正を不変Sourceとし、用語辞書で決定的に補正する](ADR-014-transcript-correction-terminology.md)
 
 ## Amended
 

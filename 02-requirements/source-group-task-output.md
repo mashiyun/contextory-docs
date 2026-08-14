@@ -2,7 +2,7 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧改善、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装の将来仕様である。
+正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧簡素化、解析完了判定の修正、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)に分離する。
 
 ## Source中心モデル
 
@@ -51,22 +51,107 @@ Analysis Sourceは詳細画面では同じSourceを継続して更新するよ�
 - 任意のRevisionについて、保存済みのsummary本文、`summaryPath`、SHA-256を確認できる。
 - 最新`summary.md`を削除または再生成する場合でも、最新Revisionの保存済みsummaryから同じ内容を復元できる。
 
-## Analysis一覧と具体的タイトル
+## Analysis一覧の表示項目
 
-Analysis一覧は分類名だけをタイトルにしない。AIはAnalysis内容から、分類が重複しても内容を判別できる短い具体的タイトルを提案する。
+Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。実利用では、Analysis表記、分類名、処理状態、hash、Source IDが並ぶと、どの一覧項目が何の内容かを判別できなかった。技術情報は一覧から外し、詳細画面と診断画面で確認する。
 
-- 一覧には具体的タイトル、分類・生成日時・確認状態、短い内容プレビューを表示する。
-- タイトルはAnalysis Sourceの表示メタデータとして保存し、タイトル本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態を持つ。
-- ユーザーはAI提案タイトルを確認、修正、却下できる。ユーザー修正後のタイトルを、後続のAI再分析で黙って上書きしない。
-- 分類は検索・絞り込みに使う属性であり、具体的タイトルの代替にしない。
-- 同一の具体的タイトルが並ぶ場合は、日時と短縮Source IDを補助表示して区別する。
-- タイトル未生成または生成に十分な内容がない場合は、推測せず「種別＋日時＋短縮Source ID」を暫定表示し、`proposed`として確認対象にする。
+- 一覧の表示項目は、内容が分かる具体的な要約と、JSTへ変換した日時の2つとする。
+- Analysis表記、分類、処理状態、hash、Source ID、Revision番号、モデル名は通常の一覧へ表示しない。
+- 詳細画面と診断画面では、Analysis Source ID、Revision、分類、処理状態、hash、使用モデル、生成日時を確認できる。
+- 具体的な要約はAnalysis Sourceの表示メタデータとして保存し、本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態、ユーザー修正の有無を持つ。
+- ユーザーはAI提案の要約を確認、修正、却下できる。ユーザー修正後の表示要約を、後続のAI再分析で黙って上書きしない。
+- 分類は検索・絞り込みに使う属性であり、一覧の表示項目にはしない。
+- 保存する時刻はUTCのISO 8601を正本とし、表示時にだけAsia/Tokyoへ変換する。既定の表示形式は分単位の`2026/08/14 10:30`とする。
+- 表示要約が未生成の場合は推測せず、Source種別とJST日時による暫定表示を使い、`proposed`として確認対象にする。暫定表示はユーザー確定の要約ではない。
+
+#### 同一要約・同一時刻の区別
+
+- 一覧の表示項目は要約とJST日時だけを維持し、hash、Source ID、短縮IDを表示しない。
+- 通常は分単位で表示する。
+- 表示要約とJST分が完全に一致する項目が複数ある場合だけ、その一致集合の日時を秒まで表示する。
+- 秒まで表示しても一致する場合だけ、その一致集合の日時を小数秒まで表示する。
+- 一致判定と桁の拡張判定はlocale非依存で決定的に行う。要約はUnicode正規化後のコードポイント列で比較し、日時はUTC正本の値で比較する。表示桁の拡張は一致集合の全行へ同時に適用する。
+- 行の内部識別にはSource IDを使うが、画面へ表示しない。
+
+#### 表示要約の保存と移行
+
+- 新規書き込みは`presentationSummary`だけを使用する。legacyの`presentationTitle`へ新規に書き込まない。
+- 読込時のeffective summaryの優先順位は次に固定する。
+  1. ユーザー確認済みの`presentationSummary`
+  2. ユーザー確認済みのlegacy `presentationTitle`
+  3. `presentationSummary`
+  4. legacy `presentationTitle`
+  5. Source種別とJST日時によるfallback表示
+- 両フィールドが存在する場合もlegacy値を削除しない。
+- 読込時のbackfillと、既存Manifestの一括更新を行わない。
+- 新フィールドへの投影は、次回の正規Revision書き込み時にappend-onlyで行う。
+- schema version、旧version読込、新version書込、SQLite再索引のいずれでも同じeffective summary規則を使う。
+- 確認状態とユーザー修正履歴はフィールド移行後も保持し、AIが上書きしない。
 
 ### 受入条件
 
-- 同じ分類のAnalysisが連続しても、タイトルとプレビューから内容を識別できる。
-- 同じタイトルまたは未生成タイトルでも、日時と短縮Source IDから個別のAnalysisを識別できる。
-- 任意のタイトルについて、生成根拠、生成モデル、確認状態、ユーザー修正の有無を確認できる。
+- 一覧から、各項目の内容とJST日時だけで内容を判別できる。
+- 一覧にAnalysis表記、分類、処理状態、hash、Source IDが現れない。
+- 詳細画面と診断画面から、Source ID、Revision、分類、処理状態、hash、使用モデルを確認できる。
+- 保存済み時刻がUTCのISO 8601であり、表示だけがJSTである。
+- 表示要約が未生成のAnalysisでも、Source種別とJST日時で一覧から識別できる。
+- 表示要約とJST分が一致する項目が複数ある場合、その集合だけが秒まで、なお一致する場合だけ小数秒まで表示され、他の行の表示桁は変わらない。
+- 同じデータからは、実行環境のlocaleに依存せず同じ表示桁と同じ並びが得られる。
+- legacy `presentationTitle`だけを持つ既存Analysisでも、一覧が同じ優先順位でeffective summaryを表示し、読込によってManifestが更新されない。
+- 新旧フィールドが併存する場合も、ユーザー確認済みの値が優先され、legacy値が削除されない。
+- 任意の表示要約について、生成根拠、生成モデル、確認状態、ユーザー修正の有無を確認できる。
+
+## 解析完了判定と状態表示
+
+実利用で、Claude解析とAnalysis保存が成功しているのに「自動解析失敗」と表示される事象を確認した。原因は解析結果の保存後に行う親Manifestの完了更新であり、解析そのものの失敗ではない。解析の成否は、解析結果の保存が完了したかどうかで判定する。
+
+### 必須要件
+
+- canonical Analysis Source Manifest、最新Revision record、Revisionの不変Summary snapshot、保存済みSHA-256の検証に成功した時点で、その解析は成功として扱う。最新表示用`summary.md`はmaterialized viewであり成功境界へ含めず、欠損時はRevision snapshotから再生成する。
+- 解析結果の保存前に発生した失敗と、保存後の状態同期に発生した失敗は、別の状態・別の表示として扱う。
+  - 保存前の失敗は既存の`analysis_failed`／`retry_waiting`とし、再解析の対象とする。
+  - 保存後の状態同期失敗は`completion_sync_pending`とし、Analysisは有効なものとして表示する。再解析の対象にせず、状態の再同期だけを行う。
+- 完成済みのAnalysisを再生成しない。同じ`operationId`に対して重複するAnalysis Sourceを登録しない。
+- 「自動解析失敗」は、Claude解析またはAnalysis保存が実際に失敗した場合だけ表示する。
+
+#### `operationId`の確定と所有権
+
+- `operationId`はProcessing Job作成時にUUIDとして確定し、Claude実行前に永続化する。実行後に採番しない。
+- 新規のcanonical Analysis Sourceでは`operationId`を必須とし、Analysisの`generation.operationId`にも同じ値を保存する。
+- JobとAnalysisの`operationId`はSQLiteへ索引化する。legacyのnull行を除く部分一意制約とし、新規writerはnullを拒否する。
+- Bundle走査による再索引で同じ`operationId`の重複を検出した場合はfail-closedとする。重複を自動統合・自動削除せず、新規書き込みを止めて手動レビュー対象にする。
+- Analysisの保存、Summaryの保存、親Source Manifestの完了更新は、実装上の`AnalysisStore`を唯一の所有者とする。
+- `CaptureModel`はQueue、Processing Job、UI状態だけを担当し、親Manifestを更新しない。同じ親Manifestの完了更新を二重に行わない。
+- 親Source Manifestの完了投影は`analysisCompletions`の追加専用recordとし、`operationId`、Analysis Source ID、Revision ID、Summary snapshotのSHA-256、UTC完了日時を持つ。同じ`operationId`・同じ参照・同じhashのrecord追加は冪等な成功とし、同じ`operationId`で参照またはhashが異なるrecordは`analysis_integrity_failed`として上書きしない。別`operationId`のrecordは既存recordを削除せず追加する。
+- Processing Jobは完了投影先を`originatingSourceId`として1件だけ固定する。自動Input解析では取得元Input Source、Analysis Revision再生成では対象Analysis Sourceとする。複数の`usedSourceIds`やGroupメンバーのManifestへ完了状態を配布せず、来歴はcanonical Analysis側に固定する。
+- 親Manifestの更新が競合した場合は最新Manifestを再読込する。同じ`operationId`・参照・hashの`analysisCompletions` recordが既にあればProcessing Jobを`completed`へ収束させ、recordがなければ追加を再試行する。競合そのものを解析失敗として扱わず、再試行でも更新できなければ`completion_sync_pending`とする。
+- 復旧した`pending_analysis`／`analyzing` JobもClaude実行前に`operationId`でAnalysisを検索する。成功境界を満たすAnalysisがあれば再生成せず、親Manifestの完了状態が同じ`operationId`を示しているか、`AnalysisStore`による更新が成功した場合だけJobを`completed`へ収束させる。親Manifestを更新できなければ`completion_sync_pending`とする。同じ`operationId`のAnalysis Sourceが存在するのに成功境界を満たさない場合は`analysis_integrity_failed`として停止し、Claudeを再実行しない。
+
+#### `completion_sync_pending`の復旧
+
+- `completion_sync_pending`は起動時の復旧対象に含める。`pending_analysis`／`analyzing`と同様に、永続状態から古い順で復旧キューへ復元する。
+- `completion_sync_pending`と`completion_sync_failed`はProcessing JobのSQLite運用状態を正本とする。更新に失敗した親Manifestへこの運用状態を書き込めたと仮定せず、Sourceの表示状態はJobとの対応から導出する。
+- 復旧時はcanonical Analysis Source Manifest、最新Revision record、不変Summary snapshot、`operationId`の一致、保存済みSHA-256を検証する。完成済みと確認できた場合はAnalysisを再生成せず、親Source ManifestとProcessing Jobの状態だけを再同期する。最新表示用`summary.md`だけが欠けている場合はRevision snapshotから再生成する。
+- canonical Analysis Sourceが存在しない場合だけ保存前失敗として既存の再解析経路へ戻す。Analysis Sourceが存在するのにRevision、Summary snapshot、`operationId`、SHA-256のいずれかが不正な場合は`analysis_integrity_failed`としてfail-closedに停止し、自動再解析・自動上書き・自動削除を行わず手動レビュー対象にする。完成済みAnalysisの親Manifest同期だけが失敗した`completion_sync_failed`と混同しない。
+- Processing Jobは再同期用の永続項目として`syncAttemptCount`、`lastSyncAttemptAt`、`nextRetryAt`、`lastSyncError`を持つ。
+- 自動再同期は最大3回とし、間隔は5秒、30秒、5分とする。`nextRetryAt`到達前に自動実行しない。
+- 各自動再同期の開始前に、SQLite transactionで`syncAttemptCount`の加算、`lastSyncAttemptAt`、次の`nextRetryAt`を永続化してから親Manifest更新を試みる。更新中の終了・異常終了も1回として数え、再起動で試行回数を巻き戻さない。
+- 3回失敗した場合は`completion_sync_failed`へ遷移し、自動処理を停止する。診断情報（最後のエラー、試行回数、対象Analysis Source ID、`operationId`）を表示し、手動再同期を提供する。
+- 手動再同期もAnalysisを再生成せず、状態の再同期だけを行う。
+- `completion_sync_pending`と`completion_sync_failed`のいずれも「自動解析失敗」として表示せず、再解析キューへ投入しない。
+- `analysis_integrity_failed`は「解析保存物の整合性エラー」として表示し、破損・部分保存の対象ファイルと検証結果を診断へ示す。明示的な修復または新しい`operationId`での再生成をユーザーが選ぶまで自動処理しない。
+
+### 受入条件
+
+- Analysis SourceとSummaryが保存されている場合、一覧・詳細・常駐メニューのいずれにも「自動解析失敗」が表示されない。
+- 親Manifestの更新が競合しても、Analysisが重複登録されず、Jobが`completed`へ収束する。
+- `completion_sync_pending`のまま終了・異常終了しても、次回起動時に復旧対象として復元される。
+- 復旧・手動再同期のいずれでも、完成済みAnalysisが再生成されず、Analysis Sourceが重複しない。
+- 自動再同期が3回を超えて実行されず、3回失敗後は`completion_sync_failed`として診断と手動再同期の導線が表示される。
+- 同じ`operationId`を持つJobまたはAnalysisが2件以上ある状態では、再索引がfail-closedで停止し、新規書き込みが行われない。
+- 同じ`operationId`のAnalysis Sourceが存在してもRevisionまたはSummary snapshotの検証に失敗する場合、`analysis_integrity_failed`としてClaude再実行・上書き・削除が自動実行されない。
+- 再同期中に終了しても開始済み試行が`syncAttemptCount`へ残り、再起動を繰り返しても自動試行が3回を超えない。
+- 手動再実行の対象が、実際に解析または保存へ失敗したSourceに限定される。
 
 ## Actionsの強調とTask化
 
@@ -191,7 +276,7 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 4. AI対話: 選択済みSource／Groupだけの一時staging、監査履歴、Revisionを介した`summary.md`反映を実装する。
 5. Task関連: TaskとSource／Groupの多対多関連、`task.json`のlink正本、逆引き索引を実装する。
 6. 派生Source生成: Source単体・複数Source・Groupから派生Sourceを生成し、後続生成へ再利用する。
-7. Review改善: Analysis具体的タイトル、Actionの独立表示、保護ロック付き削除を実装する。
+7. Review改善: Analysis一覧の具体的要約とJST日時表示、Actionの独立表示、保護ロック付き削除を実装する。
 8. 外部Output公開: 承認画面、Markdown添付、Adapter、公開監査と復旧を実装する。
 
 ## 外部Output公開基盤

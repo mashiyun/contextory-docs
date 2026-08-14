@@ -58,7 +58,8 @@ MVPは開発者本人が私用Macで開発・ビルドし、私用Macと会社Ma
 - ユーザーによる確認、修正、確定、保留、却下の操作体験。
 - 最低1日1回のレビュー導線と通知。
 - Sourceへの補足、複数Sourceの関連付け、解析目的を変えた再解析、AI結果の詳細確認。
-- Analysisの具体的タイトル・Action管理・保護ロックの詳細UI。
+- Analysis一覧の具体的要約・JST日時表示、Action管理、保護ロックの詳細UI。
+- Transcript訂正と用語辞書のUI。生Transcriptの原本保持、訂正Source、辞書Revision、決定的補正は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)で設計する。
 - Jira、Confluence、Backlogへの外部公開Adapter。AI生成後の本文・Project／Space・種別・添付の承認と、資格情報・重複作成防止を含めて別Phaseで設計する。
 - タスク整理画面からの新規Input操作。
 
@@ -74,6 +75,9 @@ MVPは開発者本人が私用Macで開発・ビルドし、私用Macと会社Ma
 ## AI処理の状態
 
 - `pending_analysis`: 原本保存済み、AI処理前。
+- `completion_sync_pending`: Analysis SourceとSummaryは保存済みで、親Manifestの状態同期だけが未完了。起動時の復旧対象とし、5秒・30秒・5分の最大3回だけ自動再同期する。解析失敗として表示せず、再解析の対象にしない。
+- `completion_sync_failed`: 自動再同期が3回失敗した状態。自動処理を停止し、診断表示と手動再同期を提供する。手動再同期でもAnalysisを再生成しない。
+- `analysis_integrity_failed`: Analysis Sourceは存在するが、Revision、Summary snapshot、`operationId`、SHA-256の整合性を確認できない状態。自動再解析・上書き・削除を行わず、診断と手動レビューを要求する。
 - `proposed`: AIによる要約・グルーピング候補を生成済み。
 - `needs_review`: ユーザー確認待ち。
 - `confirmed`: ユーザー確認済み。
@@ -95,3 +99,4 @@ MVPは開発者本人が私用Macで開発・ビルドし、私用Macと会社Ma
 - 録音忘れ防止からの自動録音。
 - クラウド同期。
 - Microsoft 365 Copilot連携。会社テナント側のAPI・エージェント許可が必要なためMVPでは保留する。
+- Whisperモデル自体の学習・fine-tuning。誤変換対策は訂正Sourceと用語辞書による用語ヒント・決定的補正で行う。

@@ -26,7 +26,10 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 撮り溜めたコンテンツの一覧管理・詳細レビューUIは、常駐型取得エージェントとは別に設計する。
 - 常駐メニューはInput専用、将来のタスク整理画面は確認・補足・関連付け・再解析専用とし、相互の操作を混在させない。
 - 将来のExcel、PowerPoint、Jira、Backlog、Slack出力は確認済み文脈から生成する。
-- Analysis一覧は具体的タイトル、状態、短い内容プレビューで内容を判別できるようにする。同名には日時と短縮Source IDを補助表示し、未生成時は種別・日時・短縮IDを暫定表示する。ユーザー確定タイトルはAIが上書きしない（将来実装）。
+- Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面で確認する。保存時刻はUTCのISO 8601を正本とし、表示時だけAsia/Tokyoへ変換する（表示例`2026/08/14 10:30`、将来実装）。
+- 解析の成否はcanonical Analysis SourceとRevisionの不変Summary snapshotの保存・hash検証で判定する。`operationId`はJob作成時に確定して一意制約付きで索引化し、Analysis保存・Summary保存・親Manifest更新の所有者を1つに集約する。保存後の状態同期失敗は`completion_sync_pending`として起動時復旧の対象とし、試行回数を実行前に永続化して最大3回後は`completion_sync_failed`で手動対応へ切り替える。部分保存・破損は`analysis_integrity_failed`として自動再解析しない（将来実装）。
+- Whisperの生Transcriptはrole別に不変の原本として保持し、ユーザー訂正は不変の訂正Sourceとして追加する。訂正版Transcriptから要約とActionsを再生成し、過去Revisionを保持する。同一操作の収束は`operationId`、監査は`requestFingerprint`で分けて扱う（将来実装）。
+- 共通辞書とGroup／案件別辞書をローカルに保持し、次回録音の用語ヒントと文字起こし後の決定的な表記補正へ使う。同時適用は共通辞書と明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない（将来実装）。
 - Sourceは既定で保護ロックし、Manifestを正本として扱う。削除は参照整合性確認、一時ロック解除確認、削除確認を通してmacOSのゴミ箱へ移動し、失敗・取消・異常終了時は再ロックする（将来実装）。
 - 外部Output公開は、承認時に固定したMarkdown派生SourceをJira、Confluence、Backlog Adapterへ変換する将来設計とする。送信識別子・結果・添付状態を保存し、結果不明の自動再作成は行わない。資格情報はアプリ内部でmacOS Keychainからのみ解決し、設定、Vault、URL、プロセス、ログ、診断、Gitへ出さない。
 
@@ -37,6 +40,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [Source・Group・Task・Output要件](02-requirements/source-group-task-output.md)
 - [録音忘れ防止要件](02-requirements/recording-reminder.md)
 - [録音入力選択・無音警告要件](02-requirements/recording-input-monitoring.md)
+- [Transcript訂正・用語辞書要件](02-requirements/transcript-correction-terminology.md)
 - [安全・プライバシー原則](02-requirements/safety-principles.md)
 - [システム概要](03-design/system-overview.md)
 - [データモデル](03-design/data-model.md)
@@ -56,6 +60,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-011 Source／Group／Task関係の正本を単一Bundleへ限定する](06-adr/ADR-011-bundle-relationship-ownership.md)
 - [ADR-012 Claude実行には最小一時staging directoryを使用する](06-adr/ADR-012-minimal-claude-staging.md)
 - [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](06-adr/ADR-013-approved-external-publication.md)
+- [ADR-014 Transcript訂正を不変Sourceとし、用語辞書で決定的に補正する](06-adr/ADR-014-transcript-correction-terminology.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 
@@ -68,3 +73,5 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 ## 現在の状態
 
 Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）は実装済みです。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Analysis一覧・Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。
+
+実利用のフィードバックから、Analysis一覧のJST・簡素化、解析成功後の状態競合修正、Transcript訂正とRevision再生成、共通／Group辞書、決定的補正、PoC後のWhisperヒントの順で実装します。いずれも未実装であり、実装順は[開発フェーズ](04-roadmap/development-phases.md)に記載します。

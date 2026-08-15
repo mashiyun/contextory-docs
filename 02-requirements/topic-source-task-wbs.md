@@ -42,7 +42,7 @@ Topic Sourceは、会議録音、動画、長文などの一部を指す派生So
 Transcript範囲は対象snapshot上のUTF-8 byte半開区間`[startUtf8ByteOffset, endUtf8ByteOffset)`、時刻は録音session開始を0とする整数millisecondの半開区間`[startMilliseconds, endMilliseconds)`で保存する。開始は終了より小さく、byte境界はUnicode scalar境界と一致し、時刻は該当roleのmedia duration内でなければならない。1spanは1つの`mediaRole`だけを指し、role境界をまたぐ選択は複数spanへ分割する。複数spanの表示・結合順は一意な`displayOrder`で決定し、配列の偶然の読込順に依存しない。
 
 - span確定時に、親Source・親Revision・snapshot path・snapshot全体と選択byte列のSHA-256・時刻／byte範囲・scalar境界を検証する。原本ならroleが`mediaSourceId`に存在すること、Revisionなら`mediaSourceId`とroleが固定済み`rawTranscriptRefs`へ含まれることも検証する。範囲超過、hash不一致、来歴不一致では確定しない。
-- 再生は親Sourceの該当role・時刻を開く。必要時だけ再生用の派生クリップを生成できるが、Evidence Spanと親原本を正本として扱い、クリップを根拠の置換物にしない。
+- 再生は`mediaSourceId`が指す原音Sourceの該当role・時刻を開く。必要時だけ再生用の派生クリップを生成できるが、Evidence Spanと原音Sourceを正本として扱い、クリップを根拠の置換物にしない。
 - Transcript訂正、辞書更新、親Sourceへの新Revisionがあっても、既存spanを新しい内容へ自動追従させない。過去のsnapshot hashと範囲から切り出し根拠を再現する。新しいTranscriptを使う場合は、ユーザー確認のうえ新spanまたは新Revisionを追加する。
 - 子Topic Sourceの親参照またはEvidence Span、Topic／Task proposal、Task／Group link、Taskのコメント・blocker・変更根拠、Analysis／Revision、派生Source、公開監査のいずれかから参照されるSourceは削除不可とする。参照走査不能、DAG不正、hash不一致も削除を拒否する（fail-closed）。
 

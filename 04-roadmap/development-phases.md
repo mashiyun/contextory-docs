@@ -6,10 +6,18 @@
 
 1. Source統一・legacy移行
 2. Group
-3. Revision
-4. AI対話
-5. Task関連
-6. 派生Source生成
+3. Task–Source／Group紐付け
+4. Task手動追加・編集・コメント
+5. 汎用Revision・追加情報
+6. Transcript訂正・用語辞書
+7. Topic Source・話題分割
+8. Topic SourceからTask作成
+9. 返答待ち・blocker
+10. デイリーブリーフィング
+11. WBS親子・依存関係
+12. AI相談
+13. Decision Log／RAID
+14. 派生Output・外部公開
 
 ## 実環境フィードバック反映の実装順
 
@@ -23,6 +31,27 @@
 6. Whisper用語ヒント。PoCで方式、語数上限、改善効果を確認してから有効化する。未検証のヒントを自動適用せず、段階1〜5の実装をこのPoC待ちにしない。
 
 詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)、[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を参照する。
+
+## 次期Topic Source・Task・PM実装順
+
+Group実装後は、[Topic Source・Task・WBS・PM支援要件](../02-requirements/topic-source-task-wbs.md)と[ADR-015](../06-adr/ADR-015-topic-source-task-wbs.md)に従い、次の順で実装する。各段階は前段の正本・整合性検証を満たすまで開始しない。
+
+1. Task–Source／Group紐付け
+2. Task手動追加・編集・コメント
+3. 汎用Revision・追加情報
+4. Transcript訂正・用語辞書
+5. Topic Source・話題分割
+6. Topic SourceからTask作成
+7. 返答待ち・blocker
+8. デイリーブリーフィング
+9. WBS親子・依存関係
+10. AI相談
+11. Decision Log／RAID
+12. 派生Output・外部公開
+
+段階1〜2は`task.json` version 1／2／3 reader、SQLiteのnullable列・新規表、Bundle検証、version 3 writerの順で導入し、旧Taskを一括backfillしない。段階5のTopic writerは、Evidence Spanのsnapshot／hash／時刻／byte境界とSource DAG検証を実装してから有効化する。非Transcript長文のoffset形式が未決の間は固定Transcript snapshotを持つ音声・動画だけを対象とする。複数GroupのWBS表示順は段階9、PMカードの抽出規則は段階8／11の開始ゲートであり、段階1〜7を妨げない。
+
+簡易タイムライン、Markdown／CSV／Excel出力、要件変更・影響分析、ステータスレポート、顧客フィードバック整理、優先順位付け、リリース準備確認、Jira／Backlog同期はこの順の後続とする。工数、原価、リソース配分、複数ユーザー共同編集、権限管理は対象外とする。
 
 ## Phase 0: 基盤
 

@@ -33,12 +33,14 @@ Capture / Audio Recording / Screen Recording
 - URL Sanitizer: 画像のローカルVision OCR、URL領域をマスクした派生画像、`provided-text`のローカルURL解析を行う。URLを含む原画像はマスク済み派生画像に置き換え、`localOpenUrl`をClaudeへ渡さない。
 - AI Adapter: 会社契約のClaude Codeを、ユーザーがSource単位で確認した業務情報の許可済み処理境界とする。個人Claudeへは送信しない。
 - AI Staging: Source Bundleから選択済みの通常画像・テキスト、安全化済みURL、文字起こし、代表フレームだけを一時ディレクトリへ複製し、Claude処理後に削除する。URLを含む画像はマスク済み派生画像を使い、音声・動画原本と`localOpenUrl`は配置しない。
-- Source Lineage: Input、Analysis、Outputを同じSourceとして保存し、親Sourceと実際に使用した個別Source IDを固定する来歴管理。
+- Source Lineage: Input、Analysis、Output、Topic Sourceを同じSourceとして保存し、親Sourceと実際に使用した個別Source IDを固定する来歴管理。Topic SourceのEvidence Spanは不変snapshot、snapshotと選択byte列のhash、role、整数millisecond／UTF-8 byte半開区間を固定し、全親参照を含むSource来歴DAGを`VaultMutationLock`内で検証する。
 - Analysis Revision: 同じAnalysis Sourceへのテキスト・画像・URL追加、再分析、summary差分、過去summaryを追加専用で管理する境界。
 - AI Invocation Audit: 再分析・対話・Group展開の送信時点のRevision、summary、Source／派生物ハッシュ、Group展開結果、モデル、prompt schema、結果状態をローカルで固定記録する。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
 - Source Protection: Source Manifestを正本として既定で保護ロックし、参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。SQLiteは再構築可能な索引に限定する。
+- Task Management: Task Bundleを手動作業管理の正本とし、Source／Group多対多、不変コメント・blockerと追加専用event、返答待ち、Task親子・依存を管理する境界。現在値とeventは同じ`task.json`へatomicに保存し、WBSはGroupにリンクされたTaskの投影として専用正本を作らない。
+- PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
 - Grouping: Project／Task候補、関連根拠、確信度の生成。
 - Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。別途設計する。
@@ -118,17 +120,19 @@ Contextory Vault/
     └── contextory.sqlite3
 ```
 
-- Source Bundleは正規`sourceId`単位の永続的な記録である。新規のInput、Analysis、Outputは正規Sourceモデルへ書き込む。
+- Source Bundleは正規`sourceId`単位の永続的な記録である。新規のInput、Analysis、Output、Topic Sourceは正規Sourceモデルへ書き込む。
 - 原本、文字起こし、プレビュー、動画キーフレームをSource Bundleへまとめる。
 - 外部サービスから取り込んだ原文とユーザー補足は、AI生成物および原本と分離する。
 - Source BundleをProject／Taskフォルダへ物理移動しない。複数Project／Taskとの関連はメタデータで表現する。
 - GroupはSource IDだけを参照し、同じSourceを複数Groupへ再利用できる。Groupへの追加は生成を起動しない。
 - Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
+- Topic Sourceは`kind: topic`、`type: topic_excerpt`の派生Sourceである。snapshot所有Source、原音所有Source、nullableな親Revision、`system`／`microphone`等の単一role別Evidence Span、不変snapshotと選択byte列のhash、時刻／byte半開区間を保存し、原本／Transcriptを複製せず原音Sourceの該当時刻を再生する。親更新でspanを自動追従させず、Topic／Task／Group／Revision／派生Source／公開監査から参照される親Sourceは削除しない。
 - 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDを持つ。
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
 - Analysisの一覧表示用の具体的要約、Action、Source保護ロック、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
 - 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
 - Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列とSQLiteはlegacy cacheまたは再構築可能な索引である。
+- Taskは手動作成・編集可能で、タイトル、説明、状態、優先度、担当、予定／実績日、進捗、milestone、確認状態、作成元、`parentTaskId`、表示順、依存を持つ。コメントとblockerは追加専用とし、返答待ちは実作業状態と別に表現する。ユーザー確定値をAIが上書きしない。
 - `manifest.json`は機械可読な永続メタデータを持つ。
 - Sourceの保護状態はManifestを正本とし、欠落・不正・未知値を`locked`として扱う。SQLiteの保護状態はBundle走査から再構築する。
 - 生Transcriptは`system`と`microphone`のrole別に、不変の原本として`derived/media/<speech-model>/`へ保持する。統合snapshot、辞書補正結果、訂正版snapshotは別ファイルとして保存し、生Transcriptを上書きしない。
@@ -225,6 +229,9 @@ Contextory Vault/
 - Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
 - Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。
 - Task詳細から根拠Analysis、Source、親Taskへ逆引きできる。
+- Source詳細には将来「話題として切り出す」を置き、Transcriptまたはタイムラインの手動範囲選択でTopic Sourceを作成する。AI候補は採用、却下、範囲／タイトル修正、統合、再分割のレビュー対象であり、自動確定しない。
+- WBS表はGroupにリンクされたTaskの階層、予定日、状態、進捗、担当者、blockerを表示する。親子・依存の循環を禁止し、WBS番号は表示順から生成してTask IDの代わりにしない。簡易タイムラインとMarkdown／CSV／Excel出力は後続とする。
+- デイリーブリーフィング、返答待ち・期限超過、Decision Log、RAID、要件変更・影響分析、ステータスレポート、顧客フィードバック整理、優先順位付け、リリース準備確認は、既存Source／Group／Taskから導出する後続ビューとする。
 - GitHub風の来歴グラフは後続UIとし、先にグラフ描画可能なID参照を欠損なく保存する。
 - 一覧管理・詳細レビューのUI形態は、常駐型取得エージェントのMVPとは分けて決定する。
 

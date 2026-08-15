@@ -2,14 +2,15 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧簡素化、解析完了判定の修正、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)に分離する。
+正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧簡素化、解析完了判定の修正、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
 
 ## Source中心モデル
 
-Contextoryで保存する情報と成果物は、入力かAI生成かを問わず、同じ`Source`として扱う。Input、Analysis、OutputはUIや処理段階の呼称であり、永続モデルの別物ではない。
+Contextoryで保存する情報と成果物は、入力かAI生成かを問わず、同じ`Source`として扱う。Input、Analysis、Output、Topic SourceはUIや処理段階の呼称であり、永続モデルの別物ではない。
 
 - キャプチャ、録音、録画、PDF、手動入力は一次Sourceである。
 - AI Analysis、議事録、要件定義、返信案などの生成結果も派生Sourceである。
+- 会議、動画、長文の一部を固定根拠で切り出すTopic Sourceも派生Sourceである。詳細は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)を参照する。
 - Source単体または複数Sourceを材料として、新しい派生Sourceを生成できる。
 - 派生Sourceをさらに別の生成へ再利用できる。
 - 生成時に使用した親Source IDを固定して記録し、元Sourceを上書きしない。
@@ -189,7 +190,7 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - 削除の順序は「参照確認 → 削除操作中だけの一時ロック解除確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
 - 恒久的な手動ロック解除は、削除操作中の一時解除とは別操作・別状態とする。一時解除は削除成功、参照検出、キャンセル、失敗、異常終了のいずれでも自動的に`locked`へ戻す。
 - ロック解除・削除は通常の閲覧、再分析、Task作成から視覚的に分離した危険操作領域に置く。
-- 削除前にTask、Group、別Analysis、派生Source、外部公開記録からの参照整合性を確認し、参照中なら削除を中止して参照先を表示する。
+- 削除前にTask、Group、別Analysis／Revision、Topicの親参照／Evidence Span／proposal、Taskのコメント・blocker・変更根拠、派生Source、外部公開記録からの参照整合性を`VaultMutationLock`内で確認し、参照中または参照走査不能なら削除を中止して判明した参照先を表示する。
 - 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
 - 既存Sourceへの導入時も既定を保護ロックとし、Manifestへのbackfill完了まではロック解除済みと推測しない。
 
@@ -212,6 +213,7 @@ Taskは具体的な対応、期限、状態、待ち先、完了条件を管理�
 - Task内のSourceには、根拠、文脈、入力、下書き、確定成果物などの役割を設定できる設計とする。
 - Task–Source／Task–Group関係の正本はTask Bundleの`task.json`である。`sourceLinks`と`groupLinks`へ相手ID、role、追加日時を保存する。
 - Source Manifestの`taskIds`は既存データの読み取り用cacheであり、新規更新しない。双方向のBundle更新を行わず、SQLiteは索引として再構築する。
+- Taskの詳細な手動管理、コメント、返答待ち、blocker、WBSは[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に従う。
 
 ## 画面内URLの出典化
 

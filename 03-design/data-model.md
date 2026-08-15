@@ -2,9 +2,9 @@
 
 ## Source統一モデル
 
-一次入力、Analysis、Outputはすべて同じ`Source`として扱い、`input`、`analysis`、`output`は種別・属性で表現する。親Source、生成操作、実際に使用したSource IDを固定保存し、一次Sourceと派生Sourceのいずれも再利用可能にする。正規モデルは[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)であり、現行実装の独立Analysis BundleとContextは読み取り互換の表現として維持する。
+一次入力、Analysis、Output、Topic Sourceはすべて同じ`Source`として扱い、`input`、`analysis`、`output`、`topic`は種別・属性で表現する。親Source、生成操作、実際に使用したSource IDを固定保存し、一次Sourceと派生Sourceのいずれも再利用可能にする。正規モデルは[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)と[ADR-015](../06-adr/ADR-015-topic-source-task-wbs.md)であり、現行実装の独立Analysis BundleとContextは読み取り互換の表現として維持する。
 
-詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)および[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)を参照する。
+詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[Topic Source・Task・WBS・PM支援要件](../02-requirements/topic-source-task-wbs.md)、[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)を参照する。
 
 ## 時刻の保存と表示
 
@@ -19,9 +19,9 @@
 
 ### Task
 
-Project内で完了条件を持つ対応単位。担当、期限、状態、待ち先を持てる。
+Sourceとは別の、個人の作業管理正本。AIなしで作成・編集でき、担当、期限、状態、返答待ち、blockerを持てる。
 
-Task Bundleの`task.json`には最低限、Task ID、タイトル、種別、状態、親Task ID、作成・更新日時、レビュー状態を保存する。`sourceLinks`と`groupLinks`をTask–Source／Task–Group関係の唯一の正本とし、各linkに相手ID、role、追加日時を保存する。同じSourceやGroupを複数Taskから参照でき、派生Task作成時も元Taskを上書きしない。
+Task Bundleの`task.json`には、Task ID、タイトル、説明、作業状態、優先度、担当者、予定／実績開始・終了日、進捗率、milestone、`parentTaskId`、`displayOrder`、`dependencyTaskIds`、確認状態、作成元、作成・更新日時を保存する。提案採用時はproposal ID、生成元Analysis Source／Revision ID、採用review event IDを持ち、手動作成時はこれらを`null`とする。`sourceLinks`と`groupLinks`をTask–Source／Task–Group関係の唯一の正本とし、各linkに相手ID、role、追加日時を保存する。同じSourceやGroupを複数Taskから参照でき、派生Task作成時も元Taskを上書きしない。新規writerは`schemaVersion: 3`とし、version 1／2／3 reader、SQLite migration、Bundle検証を先行させる。旧Bundleを一括変換せず、writerは未知のtop-level fieldとlink／event内の未知fieldを保持する。
 
 ```json
 {
@@ -29,6 +29,8 @@ Task Bundleの`task.json`には最低限、Task ID、タイトル、種別、状
   "groupLinks": [{"groupId": "group_...", "role": "context", "addedAt": "2026-08-12T00:30:00Z"}]
 }
 ```
+
+Taskの実作業状態と`coordinationState`（`none`／`waiting_response`／`blocked`）は別に保存する。コメントとblockerは不変な基底record、編集／削除／解消／再開は追加専用event、Task変更は追加専用eventとして同じ`task.json`へ保存する。各record／eventは一意なID、Task内で単調増加する`sequence`、`operationId`を持つ。現在値の変更とevent追加は`VaultMutationLock`内で1回のatomic replaceとして確定し、過去本文や解消済みblockerを消さない。ユーザー確定値とAI提案は別の確認状態で保存し、AIが確定値を上書きしない。将来の外部同期情報はremote ID、同期状態、最終同期日時、照合結果をTask側に保存する。
 
 ### Source
 
@@ -130,6 +132,20 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 ```
 
 既存の`Context`は移行期間の互換名とし、新規設計ではGroupを正規の関連単位とする。いずれもSource原本を移動、複製、上書きしない。
+
+### Topic SourceとEvidence Span
+
+`kind: topic`、`type: topic_excerpt`を持つ派生Source。会議、動画、長文の一部を指すが、親Sourceを分割・変更・複製しない。`parentSourceIds`、`lineage.operation: topic_excerpt_created`、作成`operationId`、`createdByType: user`、`creationOrigin: manual | accepted_ai_proposal`、nullableな`proposalId`、確認状態を保存する。手動作成ではproposal ID、provider／model、`promptSchemaVersion`を`null`として明示する。AI生成来歴は不変なproposal側に保存し、確定Sourceの作成者と混同しない。
+
+`evidenceSpans`は複数可能な追加専用配列であり、各recordに`spanId`、Topic Revision内で一意な非負整数`displayOrder`、snapshot所有者の`parentSourceId`、原音所有者の`mediaSourceId`、nullableな親Revision ID、raw／revision snapshot種別、安全な相対snapshot path、snapshotと選択byte列のSHA-256、単一`mediaRole`、録音session相対の整数millisecond半開区間、Transcript UTF-8 byte半開区間を保存する。byte端点はUnicode scalar境界とする。原本では両Source IDを同じ録音Source、Revision snapshotでは`mediaSourceId`とroleを固定済み`rawTranscriptRefs`から選ぶ。Topic Source Bundleに親メディアやTranscriptを複製せず、再生はmedia Sourceのroleと時刻へ解決する。親のTranscript訂正・辞書更新・Revision追加では既存spanを移動せず、新しい内容を使うには新spanまたはTopic Revisionを追加する。`parentSourceIds`は全spanの両Source IDのsorted unique unionとし、そのedgeをSource来歴DAGの正本としてTask親子／依存graphから分離する。
+
+AIの話題／Decision／Action候補はTopic Sourceではなく、生成元Analysis Revision内の構造化proposal recordとして保存する。採用・修正・却下・保留は同じAnalysis Sourceの追加専用review eventへ保存し、ユーザー採用後だけ`topic_excerpt`を確定する。Topic Sourceはproposal ID、生成元Analysis Source／Revision ID、採用review event IDを参照し、通常のSourceと同様にGroup、Task、Revision、AI相談、派生Outputの参照先になれる。
+
+### 汎用Source Revision
+
+既存のAnalysis Revision schemaを読み取り互換のまま維持し、revision対応のTopic Sourceへ追加専用Revision recordを導入する。recordはRevision ID、連番、作成日時、理由、作成者種別、`operationId`、provider／model、`promptSchemaVersion`、確認状態、使用Source ID、直前との差分、構造化snapshot pathとSHA-256を持つ。Topic Revisionのsnapshotには表示タイトル、説明、Evidence Span集合、ユーザー補足、候補の採否を含め、範囲修正・統合・再分割で過去spanを置換しない。手動操作のAI関連値は`null`とする。
+
+汎用Revisionのreader、Bundle検証、SQLite索引、writerの順に導入する。不明schema、snapshot欠損、hash不一致、`operationId`衝突では対象writerをfail-closedで停止し、旧Bundleへの一括backfill、自動修復、自動削除を行わない。
 
 ### Analysis
 
@@ -326,7 +342,7 @@ Analysis SourceのRevisionから生成する閲覧用Markdown。生成モデル�
 
 ### Grouping Proposal
 
-Sourceを既存または新規のProject／Taskへ関連付けるAI候補。候補先、理由、確信度、レビュー状態を持つ。
+Sourceを既存または新規のProject／Taskへ関連付けるAI候補。生成元Analysis Revisionの構造化recordとして候補先、理由、確信度を持ち、確認状態の変更は同じAnalysis Sourceの追加専用review eventで表す。
 
 ユーザーが候補を修正した場合、AI候補、修正後の関連、修正日時を分離して保持する。再分析でユーザー確認済みの関連を自動上書きしない。
 
@@ -371,8 +387,10 @@ Analysisの保存、Summaryの保存、親Source Manifestの完了更新は、�
 - Taskは複数Sourceおよび複数Groupを参照できる。
 - Sourceは複数Project・Taskに関連できる。
 - Sourceは複数Groupから参照でき、Groupは派生Sourceの生成候補を集められる。
+- Topic Sourceは親Source／親Revisionの複数Evidence Spanを参照し、親Sourceを上書き・複製しない。
 - Analysis Sourceは複数の不変Revisionと追加専用の対話履歴を持つ。
 - Taskは複数Source・Analysis・親Taskを来歴として参照できる。
+- Taskは親子・依存をTask IDで参照する。親子関係と依存関係はそれぞれ有向非巡回であり、WBSはGroupにリンクされたTaskの投影である。
 - 派生Output Sourceは入力Task、Analysis Source、親Sourceを来歴として参照し、根拠へ逆引きできる。既存の派生Output Taskは読み取り互換として扱う。
 - Actionは抽出元Revisionと根拠Sourceを参照し、確認済みの場合だけ明示操作でTaskを作成できる。
 - External PublicationはMarkdown派生Output Sourceを参照し、公開先remote IDと結果を保存する。remote IDは削除前の参照整合性確認対象である。
@@ -412,6 +430,14 @@ publication_attachments
 tasks
 task_sources
 task_groups
+task_comments
+task_comment_events
+task_blockers
+task_blocker_events
+task_change_events
+task_proposals
+topic_evidence_spans
+topic_proposals
 group_sources
 legacy_analysis_source_map
 ai_invocation_audits
@@ -426,7 +452,7 @@ knowledge_items
 
 SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯一の永続正本にせず、破損・削除時にSource Bundleを走査して再構築できる索引として設計する。`task_sources`、`task_groups`、`group_sources`はそれぞれ`task.json`の`sourceLinks`／`groupLinks`、`group.json`の`sourceLinks`から再構築する索引であり、関係の正本ではない。`transcript_corrections`、`terminology_revisions`、`terminology_entries`、`transcript_normalizations`も、訂正Source Bundle、辞書Revisionファイル、補正履歴ファイルから再構築する索引であり、正本ではない。
 
-`processing_jobs.operation_id`と`sources.operation_id`（`kind: analysis`）には、legacyのnull行を除く部分一意制約を置く。新規writerはnullを拒否する。Bundle走査による再索引で重複を検出した場合はfail-closedとし、重複の自動統合・自動削除を行わない。
+`processing_jobs.operation_id`と`sources.operation_id`（新規`kind: analysis`／`topic`）には、legacyのnull行を除く部分一意制約を置く。同一操作・同一payloadの再試行は既存Sourceへ収束し、同じIDで異なるpayloadはfail-closedとする。新規writerはrequiredなoperation IDのnullを拒否する。Bundle走査による再索引で重複を検出した場合はfail-closedとし、重複の自動統合・自動削除を行わない。
 
 `analysis_revisions.operation_id`にもlegacyのnull行を除く部分一意制約を置き、version 2 writerはnullを拒否する。再索引で同じ`operationId`を持つRevisionが複数見つかった場合はfail-closedとし、自動統合・自動削除を行わない。
 
@@ -447,6 +473,9 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - 再索引時はSource IDと`schemaVersion`を使用する。
 - Project／Task／Group関連を変更しても原本ファイルを移動・複製しない。
 - 関係の更新時は、Task–Source／Task–Groupなら対象`task.json`だけ、Group–Sourceなら対象`group.json`だけを更新する。Source Manifestへ逆方向のID配列を書き戻さない。
+- Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。
+- Taskの親子・依存を追加・変更する場合は`VaultMutationLock`内で追加後の各全graphを独立に検証し、参照先欠損、重複、自己参照、推移的循環を拒否する。コメント・blockerは基底recordを変更せず追加eventで編集、削除、解消、再開を表し、Task現在値とeventを同じatomic replaceで保存する。
+- MVPのTask削除はarchiveとし、Task参照と履歴を有効なまま保持する。`groupLinks`を持つTask、Group辞書、Analysis／Topic／Output／公開監査から参照されるGroupのarchiveを拒否する。Source削除とGroup archiveの参照走査はロック内で書込み直前に行い、破損、不明schema、走査不能時はfail-closedとする。cascade deleteは行わない。
 - 既存`analyses/`を走査してlegacy `analysisId`と正規`sourceId`の対応を作り、旧Bundleは読み取り可能なまま残す。対応、Revision 1の不変snapshot、Bundle走査によるSQLite再構築を確認するまで新規書き込みを正規モデルへ切り替えない。
 
 詳細なSQLiteスキーマとManifest schemaは未確定である。保存方式の基本判断は[ADR-001](../06-adr/ADR-001-local-vault-storage.md)で確定する。

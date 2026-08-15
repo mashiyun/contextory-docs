@@ -27,9 +27,16 @@
 - 上記の未決事項は、確定済みの原本不変性、`operationId`収束、完了再同期上限、辞書Revision正本、決定的補正を変更しない。
 - 要約の最大長は表示調整であり、保存・移行・一覧の実装を妨げない。確定までは保存本文を切り詰めず、UI側だけで折り返し・省略表示する。
 - Whisper用語ヒントはロードマップの段階6に限定する。段階1〜5の一覧、完了収束、Transcript訂正、辞書保存、文字起こし後補正は先に実装できる。
+- Topic／Task系の直近段階1〜2は、`task.json` schema version 3 reader、SQLite migration、Bundle検証をwriterより先に導入することで開始できる。複数GroupのWBS表示順、非Transcript span、PMカード規則には依存しない。
+- 非Transcript長文のsnapshot／offset形式はTopic段階5の開始ゲートとする。未決のまま推測して保存せず、段階5の初期実装を固定Transcript snapshotを持つ音声・動画に限定する場合は、その制限をUIと受入試験へ明示する。
+- 複数Group所属Taskの表示順規則はWBS段階9、PMカードの抽出・更新規則はデイリーブリーフィング段階8およびDecision Log／RAID段階11の開始前に確定する。Task紐付け、手動編集、コメント、Revision、Transcript、Topic基盤の先行段階を妨げない。
 - その他のUI、Adapter、運用上の未決事項は、それぞれを使用するPhaseの開始前に解消し、先行Phaseのschemaや安全境界を再び未決へ戻さない。
 
 ## プロダクト
+
+- 複数Groupに同時所属するTaskについて、MVPの単一`displayOrder`をGroupごとのWBS表示でどのように解釈するか。WBS専用正本を作らない方針は確定しているため、必要ならGroup link上の表示設定ではなく、Taskの順序規則またはUIの一時表示規則として定義する。
+- Topic Sourceの手動範囲選択で、長文の非Transcript範囲をどのsnapshot／offset形式で表すか。音声・動画のTranscriptはUTF-8 byte範囲と録音session相対時刻で固定することは確定している。
+- PM支援ビューの各カードについて、既存Source／Group／Taskからの抽出条件、更新タイミング、空状態をどこまで共通化するか。カードを別の管理正本にしないことは確定している。
 
 - 案件とタスクの作成・関連付け候補をどの確信度から自動提示するか。
 - キャプチャ直後に必要な確認操作は何か。

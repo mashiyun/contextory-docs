@@ -6,15 +6,14 @@
 - SQLite accessに標準C API、軽量wrapper、ORMのどれを使うか。
 - Source Manifestの残る必須項目とschema migration単位をどう設計するか。今回確定した`generation.operationId`、Transcript来歴、旧フィールド読込順、External Ticket Sourceのversion 4／record version 1境界は再検討対象にしない。
 - SQLite Indexの列型、索引名、全文検索、再構築処理をどう設計するか。今回確定した`operationId`一意制約、重複時fail-closed、辞書・補正索引のBundle正本性、External Ticketのsnapshot／remote key／Job索引が再構築可能な投影であることは再検討対象にしない。
-- URL検出用のローカルVision OCRは確定している。画面本文の一般OCRを実装するか、実装する場合の方式と保存範囲は未決とする。
+- 画像本文やURLの抽出を将来の任意機能として追加するか、追加する場合の方式と保存範囲は未決とする。Vision OCR、自動マスク、URL領域マスクをClaude送信の前提または必須機能にしない。
 - SonnetからOpusを提案する自動ルーティング条件と、実行前確認をどの範囲で必要にするか。
-- 画面録画から音声とキーフレームをどのように抽出するか。一般本文OCRは未決のため、URL検出用Vision OCRと混同しない。
+- 画面録画から音声とキーフレームをどのように抽出するか。任意の画像本文／URL抽出とは独立して設計する。
 - 即時処理Queueの追加機能をどう管理するか。`completion_sync_pending`／`completion_sync_failed`の復旧・上限・手動再同期と、既存`retry_waiting`の自動再試行禁止は確定済みとする。
 - 常駐UIをmacOSメニューバーだけにするか、小型フローティングコントロールも用意するか。
 - キャプチャ、録音、録画のグローバルショートカットをどう割り当てるか。
 - 既存のContext／Analysis Bundleを統一SourceとGroup／Revisionモデルへ移行するschema migrationと後方互換をどう実装するか。
 - Revision差分をMarkdownの行差分、構造化フィールド差分、または両方のどこまで表示するか。
-- 確定したURL検出用Vision OCRについて、URL領域検出精度、マスク範囲、tokenらしさの具体的な判定規則をどう検証・調整するか。
 - Slack／Teamsの対象Bundle ID一覧と、ユーザー設定での追加・変更UIをどう確定するか。
 - 録音入力デバイスの安定識別子、開始前メーターの実装方式、マイク／システム音声別の無音・切断検出をどう設計するか。
 - 無音警告のしきい値、観測時間（目安5〜10秒）、ノイズ環境別の調整方法をPoCでどう決めるか。無音と設定ミスを完全に区別しない前提を維持する。
@@ -40,7 +39,7 @@
 
 - 案件とタスクの作成・関連付け候補をどの確信度から自動提示するか。
 - キャプチャ直後に必要な確認操作は何か。
-- 人物名を保持しながら不要な個人情報をマスクする判定ルール。
+- 将来の任意機能として、人物名を保持しながら不要な個人情報をマスクする判定ルールを設けるか。実装しないことや検出失敗をClaude送信停止の理由にしない。
 - 日次レビューの通知時刻、未確認件数、優先順位をどう表示するか。
 - Library／Review Interfaceを同一アプリ内の別ウィンドウ、別アプリ、ローカルWeb UIのどれにするか。
 - 保護ロックの解除履歴、ゴミ箱からの復元時のロック状態、参照中Sourceを削除候補画面でどう説明するか。
@@ -73,9 +72,15 @@ Phase 0で、GitHub Releaseによる受け渡し、SHA-256照合、ad-hoc署名�
 - Group辞書の適用範囲: MVPは共通辞書＋ユーザーが明示選択した1つのGroup辞書までとし、複数Group所属時も自動選択しない。詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)と[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)。
 - 辞書Revisionの粒度と過去Analysisの再現: scope単位のRevision snapshotを`dictionaryRevisionRefs`（`scope`、`scopeId`、`revisionId`、`snapshotPath`、`snapshotSha256`）として固定参照する。
 - 同一操作の収束条件: `operationId`をidempotency keyとし、`requestFingerprint`は監査用に分離する。fingerprint一致だけで別operationを統合しない。
-- schema切替順: version 3 Source／version 2 Revisionはversion 1／2／3 reader、SQLite nullable列・新規テーブル、Bundle検証、legacy nullを除く部分一意索引、検証後の新規writer有効化の順とする。External Ticket Source version 4はversion 1〜4 reader、SQLite migration、Bundle／snapshot検証、再索引、version 4 writerの別migrationとする。旧Bundleを一括backfillしない。
+- schema切替順: version 3 Source／version 2 Revisionはversion 1／2／3 reader、SQLite nullable列・新規テーブル、Bundle検証、legacy nullを除く部分一意索引、検証後の新規writer有効化の順とする。`stagedInputRefs`を持つAnalysis Revision version 3もversion 1／2／3 reader、再構築可能なSQLite索引、Bundle内snapshotと参照hashの検証をwriterより先に提供する。External Ticket Source version 4はversion 1〜4 reader、SQLite migration、Bundle／snapshot検証、再索引、version 4 writerの別migrationとする。旧Bundleを一括backfillしない。
 - Transcript訂正位置: 固定snapshot上のUTF-8 byte半開区間を使い、scalar境界、訂正前byte列、非重複を検証する。別モデルのTranscriptへ自動追従させない。
 - role別Transcript統合: `mergeAlgorithmVersion: 1`はsession相対の開始時刻、終了時刻、role順、元segment連番で安定sortし、必須時刻が不正ならfail-closedとする。
 - 辞書照合単位: `normalizationAlgorithmVersion: 1`はUnicode scalar列の完全一致とし、暗黙の大文字小文字・全角半角・かな・送り仮名・Unicode正規化を行わない。
 
-正規モデルでのClaude実行は、選択済み送信対象だけを置く一時staging directoryを`Read`限定で渡し、セッション非保存、構造化JSON出力とする。通常画像・テキストは選択済みならstagingへ置けるが、Source Bundle全体、音声・動画原本、`localOpenUrl`は置かない。URLはquery／fragmentを安全化する。このstaging境界は未実装であり、既存の実行経路を置き換える。ユーザーが明示的に取得・取り込みしたSourceは、その操作を処理許可として保存後に自動分析し、失敗時の自動再送は行わない。
+## 決定済み（2026-08-16）
+
+以下は仕様として確定済みであり、実装は未了である。
+
+- ユーザーが明示選択した原画像は、会社契約Claude Codeへ未マスクで送信できる。Vision OCR、URL領域マスク、自動マスク、マスク失敗時の送信停止を必須とせず、パスワード、APIキー、Cookie、秘密鍵、認証QRコード等を含む画面は取得・送信しない運用境界とする。画像から抽出・保存・表示するURLはquery／fragmentを除去する。
+- 初回解析、Revision再分析、AI対話、Group展開の全Claude実行は、選択済み入力だけを置く再生成可能な一時staging directoryをcwdとし、Source Bundleをcwdまたは`--add-dir`として直接公開しない。明示選択した原画像、テキスト、PDF、安全化済みURL、固定済みTranscript、代表フレームは配置できるが、音声・動画原本、`localOpenUrl`、未選択file、別Sourceの未選択原本、Vault全体は配置しない。
+- 初回のRevision 1を含む各Revisionと、Revisionを作らないAI対話／Group展開の追加専用invocation auditへ`stagedInputRefs`を固定する。不変input snapshotまたは削除保護されたSource参照から当時のbyte集合を再現・検証可能にし、一時staging自体を正本にしない。詳細と正本境界は[ADR-012](../06-adr/ADR-012-minimal-claude-staging.md)に従う。

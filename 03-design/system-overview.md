@@ -7,7 +7,7 @@ Capture / Audio Recording / Screen Recording
                     ↓
           Local Source Store / Group
                     ↓
- Local OCR・URL安全化 / media preprocessing
+       URL安全化 / media preprocessing
                     ↓
   Claude Code analysis / Analysis Revision
                     ↓
@@ -30,16 +30,16 @@ Capture / Audio Recording / Screen Recording
 - Media Preprocessor: PCM変換、ローカルWhisper文字起こし、AVFoundationによる動画代表フレーム抽出。成果物がない場合はAI解析へ進めない。生Transcriptは不変の原本として保持する。
 - Transcript Correction: 生Transcriptを上書きせず、ユーザー訂正を不変の訂正Sourceとして追加し、訂正版Transcript snapshotをAnalysis Revisionへ保存する境界。
 - Terminology Dictionary: 共通辞書とGroup／案件別辞書をローカル保持し、次回録音の用語ヒントと、文字起こし後の決定的な表記補正へ使う境界。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない。MVPで同時適用できるのは共通辞書とユーザーが明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。
-- URL Sanitizer: 画像のローカルVision OCR、URL領域をマスクした派生画像、`provided-text`のローカルURL解析を行う。URLを含む原画像はマスク済み派生画像に置き換え、`localOpenUrl`をClaudeへ渡さない。
+- URL Sanitizer: 画像、`provided-text`、ユーザー入力から抽出して保存・表示・送信するURLのquery／fragmentを除去する。画像からのURL抽出は任意で送信の前提にせず、`localOpenUrl`をClaudeへ渡さない。
 - AI Adapter: 会社契約のClaude Codeを、ユーザーがSource単位で確認した業務情報の許可済み処理境界とする。個人Claudeへは送信しない。
-- AI Staging: Source Bundleから選択済みの通常画像・テキスト、安全化済みURL、文字起こし、代表フレームだけを一時ディレクトリへ複製し、Claude処理後に削除する。URLを含む画像はマスク済み派生画像を使い、音声・動画原本と`localOpenUrl`は配置しない。
+- AI Staging: 初回解析、Revision再分析、AI対話、Group展開の全実行で、選択済みの未マスク原画像・テキスト・PDF・安全化済みURL・固定済み文字起こし・代表フレームだけをSource Bundle外の一時ディレクトリへ複製し、Claudeのcwdにする。Source Bundleをcwdまたは`--add-dir`として公開せず、音声・動画原本と`localOpenUrl`は配置しない。
 - Source Lineage: Input、Analysis、Output、Topic Sourceを同じSourceとして保存し、親Sourceと実際に使用した個別Source IDを固定する来歴管理。Topic SourceのEvidence Spanは不変snapshot、snapshotと選択byte列のhash、role、整数millisecond／UTF-8 byte半開区間を固定し、全親参照を含むSource来歴DAGを`VaultMutationLock`内で検証する。
 - External Ticket Import: Jira／BacklogのRead Adapterまたは手動入力をSource Manifest version 4、`kind: input`、`type: external_ticket_snapshot`へ正規化する境界。検証済みの不変remote ID、endpoint identity、operation ID、完全取得scope、snapshot系列、重複、差分を検証する。API pageは一時stagingへ置き、完全性確認後だけ`VaultMutationLock`内でSourceを確定する。外部ticketを変更せずTaskを自動作成・更新しない。
 - Analysis Revision: 同じAnalysis Sourceへのテキスト・画像・URL追加、再分析、summary差分、過去summaryを追加専用で管理する境界。
-- AI Invocation Audit: 再分析・対話・Group展開の送信時点のRevision、summary、Source／派生物ハッシュ、Group展開結果、モデル、prompt schema、結果状態をローカルで固定記録する。
+- AI Invocation Audit: 初回解析を含む各Revisionの`stagedInputRefs`へ送信時点の入力所有Source、Revision、`contentRole`、`inputType`、元path、staging論理path、staged bytesと原ファイルのhash、MIME `contentType`、transformation／versionを固定し、Group展開結果、モデル、prompt schema、結果状態と結び付ける。Revisionを作らないAI対話／Group展開にも同じ配列を追加専用のauditとして残し、一時stagingは正本にしない。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
-- Source Protection: Source Manifestを正本として既定で保護ロックし、参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。SQLiteは再構築可能な索引に限定する。
+- Source Protection: Source Manifestを正本として既定で保護ロックし、Addition画像Source、明示追加context Source、`stagedInputRefs`を含む参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
 - Task Management: Task Bundleを手動作業管理の正本とし、Source／Group多対多、不変コメント・blockerと追加専用event、返答待ち、Task親子・依存を管理する境界。現在値とeventは同じ`task.json`へatomicに保存し、WBSはGroupにリンクされたTaskの投影として専用正本を作らない。
 - PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
@@ -83,7 +83,7 @@ Contextory Vault/
 │               ├── preview.jpg
 │               ├── frames/
 │               └── derived/
-│                   ├── sanitized/  # URLマスク済み送信専用派生物
+│                   ├── sanitized/  # URL安全化済み送信専用派生物
 │                   ├── media/
 │                   │   └── <speech-model>/
 │                   │       ├── transcript-<role>.md            # role別の不変な生Transcript
@@ -94,6 +94,7 @@ Contextory Vault/
 │                       ├── revisions/
 │                       │   └── <revision-id>/
 │                       │       ├── revision.json
+│                       │       ├── inputs/                  # 非Source・可変派生物の不変input snapshot
 │                       │       ├── transcript-corrected.md  # 訂正版の不変snapshot
 │                       │       └── summary.md               # 不変snapshot
 │                       ├── conversations/
@@ -129,7 +130,7 @@ Contextory Vault/
 - Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
 - Topic Sourceは`kind: topic`、`type: topic_excerpt`の派生Sourceである。snapshot所有Source、原音所有Source、nullableな親Revision、`system`／`microphone`等の単一role別Evidence Span、不変snapshotと選択byte列のhash、時刻／byte半開区間を保存し、原本／Transcriptを複製せず原音Sourceの該当時刻を再生する。親更新でspanを自動追従させず、Topic／Task／Group／Revision／派生Source／公開監査から参照される親Sourceは削除しない。
 - External Ticket Sourceは`kind: input`、`type: external_ticket_snapshot`の不変Inputである。provider、providerが保証する不変instance ID（なければ正規化endpoint）、不変issue ID、必要時だけproject不変IDからremote keyを確定し、endpointと変更可能なissue／project keyは表示aliasとする。remote version、取得scope、snapshot hash、operation IDで更新系列を検証し、変更時だけ一意な系列tipを参照する新Sourceを作る。不変IDを検証できない手動Sourceは`unconfirmed`のまま独立保存する。Read Adapterは公開Adapterとinterface、Job、資格情報を分け、外部ticketを変更しない。
-- 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDを持つ。
+- 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。初回のRevision 1を含む各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDと`stagedInputRefs`を持つ。非Sourceまたは変更・削除され得る派生入力はRevision Bundleの`inputs/`へ不変snapshotする。
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
 - Analysisの一覧表示用の具体的要約、Action、Source保護ロック、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
 - 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
@@ -144,7 +145,7 @@ Contextory Vault/
 - SQLiteは検索、関連、処理状態、再試行、レビューキュー用のローカル索引とする。
 - SQLiteの永続情報は可能な限りSource Bundleから再構築可能にする。
 - 実行待ち、処理中、ロック、再試行回数などの一時的な運用状態はSQLiteのみで保持できる。
-- Claude実行用のstaging directoryはLocal VaultのBundle外にジョブ単位で作る一時領域であり、`jobId`と`createdAt`を持つ。永続化・バックアップ・Git管理しない。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時には実行中Jobへ属さない残存stagingも削除する。
+- Claude実行用のstaging directoryはLocal VaultのBundle外にジョブ単位で作る一時領域であり、`jobId`、`operationId`、`createdAt`を持つ。永続化・バックアップ・Git管理せず、Claudeのcwdに固定する。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時には実行中Jobへ属さない残存stagingをすべて回収する。
 
 詳細と判断理由は[ADR-001](../06-adr/ADR-001-local-vault-storage.md)を参照する。
 
@@ -158,7 +159,7 @@ Contextory Vault/
 - 誤操作に備え、直近の取得を破棄できるようにする。
 - メニューバーに確定済みSource数とLocal Vault使用量を表示する。
 - Sourceは既定で保護ロックする。削除は参照整合性確認、一時ロック解除確認、削除確認を通過してからSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。参照検出、キャンセル、失敗、異常終了、ゴミ箱移動成功時には一時解除を自動再ロックする。恒久的な手動ロック解除とは別に扱う。
-- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式を削除候補として表示できる。Task、Group、別Analysis、派生Source、外部公開記録から参照中の場合は削除を禁止する。
+- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式を削除候補として表示できる。Task、Group、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、派生Source、外部公開記録から参照中の場合は削除を禁止する。参照走査不能、欠損、hash不一致でもfail-closedとし、cascade deleteしない。
 - 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。
 - 保存完了通知の権限は自動要求せず、ユーザーの明示操作で有効化する。
 - 常駐メニューにはInput操作と処理状態だけを表示する。
@@ -181,10 +182,12 @@ Contextory Vault/
 - Claude Codeプロセスの上限時間は5分とし、超過時は終了要求後に必要なら強制終了する。
 - 使用上限、認証切れ、タイムアウトは`retry_waiting`、不正出力と一般実行失敗は`analysis_failed`として記録する。
 - 失敗Sourceは現在のQueueから隔離して後続を処理し、`retry_waiting`は自動再試行しない。
-- Source Bundle全体をClaude実行の作業ディレクトリにしない。選択済みの画像、テキスト、安全化済みURL、文字起こし、代表フレームだけをジョブ単位の一時staging directoryへ配置し、Claude Codeのツールを`Read`だけに限定して、セッションを保存せず構造化JSONを受け取る。
-- staging directoryに音声・動画原本と`localOpenUrl`を置かない。URLを含む画像はマスク済み派生画像、提供テキストはquery／fragmentを除去した安全化版を置く。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時は実行中Jobに属さない残存stagingを削除する。
-- 会社契約のClaude Codeへは明示取得・取り込みした業務情報を送信できるが、個人Claudeへは送信しない。パスワード入力画面、APIキー、Cookie、セッショントークンを表示する管理画面はユーザーが明示取得しない運用とし、万能な認証情報検出・マスク・fail-closedは実装しない。
-- 画像は送信前にローカルVision OCRでURLを検出し、URL領域をマスクした派生画像だけを渡す。`provided-text`はローカルでURL解析・安全化し、queryとfragmentを除去した`aiDisplayUrl`だけを渡す。前処理に失敗した場合は`needs_review`として自動送信しない。
+- 初回解析、Revision再分析、AI対話、Group展開の全Claude実行で、Local Vault、Source Bundle、別Source Bundleをcwdまたは`--add-dir`として直接公開しない。ユーザーが明示選択した入力だけを再生成可能な一時stagingへ配置し、Claudeのcwdをstaging directoryに固定する。Claude Codeのツールは`Read`だけに限定し、セッションを保存せず構造化JSONを受け取る。
+- staging directoryには選択済みの未マスク原画像、テキスト、PDF、安全化済みURL、固定済みTranscript、代表フレームを配置できる。音声・動画原本、`localOpenUrl`、未選択ファイル、別Sourceの未選択原本、Vault全体は置かない。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時は実行中Jobに属さない残存stagingをすべて回収する。
+- 会社契約のClaude Codeへは明示取得・取り込みした業務情報を送信できるが、個人Claudeへは送信しない。パスワード、APIキー、Cookie、秘密鍵、セッショントークン、認証QRコード等を含む画面はユーザーが取得・送信対象として選択しない運用とし、万能な認証情報検出、自動マスク、検出失敗を理由とする一律のfail-closedは実装しない。画像内容をログ、診断、クラッシュ情報へ出さない。
+- ユーザーが明示選択した原画像は未マスクで送信でき、Vision OCR、URL領域マスク、マスク失敗時の送信停止を必須としない。画像、`provided-text`、ユーザー入力から抽出して保存・表示・送信するURLはquery／fragmentを除去した`aiDisplayUrl`を使い、抽出・安全化失敗したURL値だけを送信対象から除外する。
+- 初回のRevision 1を含む各Analysis Revisionは、実際に配置したfileの対象Revision ID、入力所有Source ID、`contentRole`、`inputType`、元の安全な相対path、staging論理path、staged bytesのSHA-256、MIME `contentType`、transformation種別／version、原ファイルSHA-256を`stagedInputRefs`へ固定する。非Source入力は保存先のAnalysis Sourceを所有者とし、別Revisionのsnapshotを使う場合は入力Revision IDも固定する。Revisionを作らないAI対話／Group展開は同じ配列を追加専用のinvocation auditへ固定する。
+- 非Source入力と変更・削除され得る派生入力は対象Revision Bundleへ不変snapshotし、不変Source原本はSource ID、path、hashで参照して削除保護する。一時staging自体は正本にせず、`stagedInputRefs`から当時のbyte集合を再現・検証する。走査不能、欠損、path不正、hash不一致ではClaude実行と削除をfail-closedにする。
 - 初回`summary.md`は固有Analysis SourceのRevisionとして原子的に保存し、ユーザー確認前は`proposed`として扱う。最新表示用`summary.md`はRevision履歴から再生成できる。
 - Groupから生成する際は、Group IDだけでなく実際に使用した個別Source IDを固定し、原本を移動せずClaude Codeへ渡す。
 - Analysis Sourceへの再分析では、現在のsummary、今回のテキスト・画像・URL追加、ユーザー指示を中心に渡す。音声、動画、PDFの追加は新規Source取り込みと前処理を経由する。

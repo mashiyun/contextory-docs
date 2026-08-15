@@ -170,9 +170,10 @@ Status: 完了（2026-08-11）
 - Inputを持たないタスク整理画面として、解析結果表示、補足、関連付け、目的別再解析を提供する。
 - Analysis Sourceへのテキスト・画像・URL追加、Revision履歴、過去summary、差分、根拠Source、最新`summary.md`のmaterialized view再生成を提供する。各Revisionのsummary snapshot、パス、SHA-256を必須とする。
 - Analysis Source詳細から原本画像のプレビュー、原本音声・動画の再生、原本と追加情報のFinder表示を提供する。
-- 画面画像へローカルVision OCR、URL領域マスク済み派生画像、提供テキストのローカルURL安全化を適用し、失敗時は`needs_review`で自動送信を止める。AI表示URLとローカル遷移URLを分離する。
+- ユーザーが明示選択した原画像は、会社契約Claude Codeへ未マスクで送信できるようにする。Vision OCR、URL領域マスク、自動マスク、マスク失敗時の送信停止を必須工程にしない。画像、提供テキスト、ユーザー入力からURLを抽出・保存・表示する場合はquery／fragmentを除去し、AI表示URLとローカル遷移URLを分離する。
 - Analysis Source詳細にClaudeへの質問・補足入力を設け、選択済みの追加Source／Groupだけを文脈にして対話履歴とRevisionを保存する。送信時のRevision、summary、Group展開結果、入力ハッシュ、モデル、prompt schema、結果状態を監査記録へ固定する。
-- Claude実行ごとに`jobId`と`createdAt`を持つ一時staging directoryへ、選択済みの通常画像、テキスト、安全化済みURL、文字起こし、代表フレームだけを配置する。URLを含む画像はマスク済み派生画像を使い、Source Bundle全体、音声・動画原本、`localOpenUrl`は配置しない。処理後と次回起動時に実行中Jobへ属さない残存stagingを削除する。
+- 初回解析、Revision再分析、AI対話、Group展開の全Claude実行で、`jobId`、`operationId`、`createdAt`を持つ再生成可能な一時staging directoryをClaudeのcwdにする。Source Bundleをcwdまたは`--add-dir`として直接公開せず、明示選択した未マスク原画像、テキスト、PDF、安全化済みURL、固定済みTranscript、代表フレームだけを配置する。音声・動画原本、`localOpenUrl`、未選択file、別Sourceの未選択原本、Vault全体は配置せず、完了、失敗、タイムアウト、中断後と、起動時に実行中Jobへ属さない残存stagingを回収する。
+- 初回のRevision 1を含む各Revisionと、Revisionを作らないAI対話／Group展開の追加専用invocation auditへ、実際に送信したbyte集合を`stagedInputRefs`として固定する。非Sourceまたは変更・削除され得る派生入力はRevision Bundleへ不変snapshotし、不変Source原本はSource ID、相対path、hashを固定して削除保護する。一時stagingを正本にせず、正本Revision保存済みの復旧ではClaudeを再実行せず状態同期だけを行う。
 - AI対話、再分析、Group展開でADR-008を適用し、未前処理／前処理失敗メディアを含む場合はfail-closedで送信を止める。
 - TaskとSource／Groupを多対多で関連付ける。Task–Source／Task–Groupの正本を`task.json`の`sourceLinks`／`groupLinks`に置き、`task_sources`／`task_groups`を再構築可能なSQLite索引とする。
 - 複数Taskを選択し、出力目的・形式を指定した派生Output Sourceを生成する。

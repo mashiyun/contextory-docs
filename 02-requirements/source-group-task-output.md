@@ -41,6 +41,7 @@ Analysis Sourceは詳細画面では同じSourceを継続して更新するよ�
 - 音声、動画、PDFはRevisionへ直接追加しない。独自前処理を伴う新規Sourceとして取り込み、必要に応じて同じGroupへ追加してAnalysisを生成する。
 - Revisionは連番、作成日時、作成理由、追加したSource ID、追加情報種別、ユーザー指示、使用Provider／モデル、確認状態、直前Revisionとの差分を持つ。
 - 各Revisionはsummary本文の不変スナップショットを必ずファイルとして保存し、`summaryPath`とSHA-256を記録する。ハッシュだけ、または最新`summary.md`だけをRevisionの保存として扱わない。
+- 初回AnalysisはRevision 1として、以後の再分析は各Revisionとして、実際にClaudeへ渡したfile集合を`stagedInputRefs`へ追加専用で固定する。一時staging directoryは正本にしない。
 - AIは現在のsummary、今回の追加情報、今回のユーザー指示を中心に再分析し、最新表示用の`summary.md`を更新する。根拠として使用した個別Source IDも固定保存する。
 - 過去のsummaryと追加情報はRevision単位で保持する。最新の`summary.md`は最新Revisionの不変スナップショットから再生成するmaterialized viewであり、構造化Revision履歴から再生成できる。
 - 詳細画面では、Revision回数、追加情報、各Revisionのsummary、直前との差分、根拠Sourceを確認できる。
@@ -52,6 +53,7 @@ Analysis Sourceは詳細画面では同じSourceを継続して更新するよ�
 - 任意のRevisionについて、理由、追加情報、根拠Source、使用モデル、差分を確認できる。
 - 任意のRevisionについて、保存済みのsummary本文、`summaryPath`、SHA-256を確認できる。
 - 最新`summary.md`を削除または再生成する場合でも、最新Revisionの保存済みsummaryから同じ内容を復元できる。
+- 任意のRevisionについて、`stagedInputRefs`と不変input snapshotまたは削除保護されたSource原本から、当時Claudeへ渡したbyte集合を再現・検証できる。
 
 ## Analysis一覧の表示項目
 
@@ -191,7 +193,7 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - 削除の順序は「参照確認 → 削除操作中だけの一時ロック解除確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
 - 恒久的な手動ロック解除は、削除操作中の一時解除とは別操作・別状態とする。一時解除は削除成功、参照検出、キャンセル、失敗、異常終了のいずれでも自動的に`locked`へ戻す。
 - ロック解除・削除は通常の閲覧、再分析、Task作成から視覚的に分離した危険操作領域に置く。
-- 削除前にTask、Group、別Analysis／Revision、Topicの親参照／Evidence Span／proposal、Taskのコメント・blocker・変更根拠、派生Source、外部公開記録からの参照整合性を`VaultMutationLock`内で確認し、参照中または参照走査不能なら削除を中止して判明した参照先を表示する。
+- 削除前にTask、Group、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、Topicの親参照／Evidence Span／proposal、Taskのコメント・blocker・変更根拠、派生Source、外部公開記録からの参照整合性を`VaultMutationLock`内で確認する。参照中、参照走査不能、参照先欠損、path不正、hash不一致では削除を中止して判明した参照先を表示し、RevisionまたはAnalysisの削除でもcascade deleteしない。
 - 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
 - 既存Sourceへの導入時も既定を保護ロックとし、Manifestへのbackfill完了まではロック解除済みと推測しない。
 
@@ -218,26 +220,26 @@ Taskは具体的な対応、期限、状態、待ち先、完了条件を管理�
 
 ## 画面内URLの出典化
 
-Backlog、Jira、Confluence、Slack、メール等のキャプチャでは、ユーザーが可能な範囲でアドレスバーやURLを画面内へ含める。AI送信前にローカルVision OCRで画像内のURL文字列を検出し、URL領域をマスクした派生画像と安全化済みURLだけをClaudeへ渡す。原画像はローカルに不変のSourceとして残す。`provided-text`もローカルでURLを解析・安全化してから送る。
+Backlog、Jira、Confluence、Slack、メール等のキャプチャでは、ユーザーが可能な範囲でアドレスバーやURLを画面内へ含められる。ユーザーが明示選択した原画像は、会社契約Claude Codeへ未マスクで送信できる。Vision OCR、URL領域マスク、マスク失敗時の送信停止は必須としない。原画像はローカルに不変のSourceとして残し、画像、`provided-text`、ユーザー入力からURLを抽出・保存・表示する場合はquery／fragmentを除去した安全化URLを使う。
 
 ### 必須要件
 
-- 画像のURL検出にはローカルVision OCRを使い、検出したURL領域をマスクした送信用派生画像を作る。派生画像の親Source IDとハッシュを記録する。
+- 画像からのURL抽出は任意機能とし、送信の前提にしない。抽出する場合は抽出方法と元Source IDを記録し、認識できない値を推測・補完しない。
 - `provided-text`とユーザー入力のURLは、ローカル解析で送信用に安全化する。
-- URLごとに、抽出元Source ID、抽出方法（Vision OCR、提供テキスト、ユーザー入力）、`aiDisplayUrl`、ローカル遷移専用の`localOpenUrl`、確認状態を保持する。
+- URLごとに、抽出元Source ID、抽出方法（画像、提供テキスト、ユーザー入力）、`aiDisplayUrl`、ローカル遷移専用の`localOpenUrl`、確認状態を保持する。
 - `aiDisplayUrl`はqueryとfragmentを除去したAI送信用・AI出力表示用URLとする。`localOpenUrl`はローカルVault内だけに保持し、既定ブラウザで開くためにだけ使う。`localOpenUrl`をClaude、AI出力、Markdown、ログへ渡さない。
 - 複数Sourceから生成した場合は、どのURLがどのSourceに由来するか追跡できる。
 - Source詳細から`localOpenUrl`をクリックして既定ブラウザで開ける。AI生成SourceとAI出力には`aiDisplayUrl`だけを表示する。
 - URLを認識できない場合は推測・補完せず、「URL未検出」として扱う。
-- OCR誤認の可能性があるURLはAI提案状態とし、ユーザー確認前に確定URLとして扱わない。
-- ローカルOCR、URL解析、URL領域マスクのいずれかに失敗した場合は自動送信しない。対象Sourceを`needs_review`として失敗理由とともに表示する。
+- 画像等からの抽出結果に誤認の可能性があるURLはAI提案状態とし、ユーザー確認前に確定URLとして扱わない。
+- 抽出したURLの解析・query／fragment除去に失敗した場合は、そのURLを保存・表示・送信しない。画像自体は明示選択済みなら未マスクで送信でき、URL抽出やマスクを実行しないことを失敗にしない。
 
 ### 受入条件
 
-- URLを含む画面キャプチャでは、原画像をローカルに残し、ClaudeへURL領域をマスクした派生画像だけを送る。
+- 明示選択した画面キャプチャは原画像をローカルに残したまま、会社契約Claude Codeへ未マスクで送信できる。
 - AI出力には`aiDisplayUrl`だけが表示され、`localOpenUrl`のqueryやfragmentが現れない。
 - アプリからURLを開く場合だけ`localOpenUrl`を使い、AI出力に表示するURLとの違いを詳細画面で明示する。
-- ローカル前処理に失敗したSourceは自動送信されず、`needs_review`で確認できる。
+- 抽出URLの安全化に失敗した値は送信されず、画像の送信可否とは分離して確認できる。
 - 派生Sourceでも出典URLと根拠Sourceへ逆引きできる。
 - 存在しないURLをAIが生成しない。
 
@@ -250,11 +252,13 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 - Analysis Source詳細から、ユーザーが自由文で質問または修正指示を入力できる。
 - Claudeへ渡す文脈は、対象Analysis Sourceとユーザーが明示的に選択した追加Source／Groupに限定する。
 - ユーザー発言、AI回答、日時、使用モデル、根拠Source IDを追加専用の対話履歴として保存する。
-- 各対話は`analysisSourceId`、基準Revision ID、送信時の`summaryPath`とSHA-256、Group展開後のSource ID一覧、使用したSource／派生物のIDとハッシュ、モデル、prompt schema version、送信日時、結果状態をローカル監査記録として固定保存する。
+- 各対話は`analysisSourceId`、基準Revision ID、送信時の`summaryPath`とSHA-256、Group展開後のSource ID一覧、使用したSource／派生物のIDとハッシュ、`stagedInputRefs`、モデル、prompt schema version、送信日時、結果状態を追加専用のローカル監査記録として固定保存する。
 - 選択したGroupは送信時に個別Source IDへ展開し、そのsnapshotだけを対話の文脈とする。後日のGroup変更やRevision追加で過去対話の送信文脈を変えない。
 - 対話、再分析、Group展開のいずれでも[ADR-008](../06-adr/ADR-008-local-media-preprocessing.md)を適用する。音声・動画の原本をClaudeへ渡さず、前処理済み文字起こし・代表フレームだけを使用する。未前処理または前処理失敗のメディアを含む場合はfail-closedで送信せず、対象を表示する。
-- Claude実行時はSource Bundle全体を作業ディレクトリにしない。選択済み送信対象だけを置く一時staging directoryを作り、通常画像、テキスト、安全化済みURL、文字起こし、代表フレームを配置する。URLを含む画像にはURL領域をマスクした派生画像を使う。音声・動画原本と`localOpenUrl`は配置しない。
-- staging directoryは`jobId`と`createdAt`を持ち、処理完了、失敗、タイムアウト、中断のいずれでも削除する。次回起動時には実行中Jobへ属さない残存stagingも削除する。これは送信文脈の限定、Claudeの誤読と不要なトークン消費の防止を目的とする。
+- 初回解析、Revision再分析、AI対話、Group展開の全Claude実行で、Source Bundleをcwdまたは`--add-dir`として直接公開しない。選択済み送信対象だけを置く一時staging directoryをClaudeのcwdとし、明示選択した未マスク原画像、テキスト、PDF、安全化済みURL、固定済み文字起こし、代表フレームを配置できる。音声・動画原本、`localOpenUrl`、未選択ファイル、別Sourceの未選択原本、Vault全体は配置しない。
+- staging metadataは`jobId`、`operationId`、`createdAt`を持ち、処理完了、失敗、タイムアウト、中断のいずれでも削除する。次回起動時には実行中Jobへ属さない残存stagingをすべて回収する。これは送信文脈の限定、Claudeの誤読と不要なトークン消費の防止を目的とする。
+- 初回のRevision 1を含む各Analysis Revisionは、対象Revision ID、入力所有Source ID、`contentRole`、`inputType`、元の安全な相対path、staging論理path、staged bytesのSHA-256、MIME `contentType`、transformation種別／version、原ファイルSHA-256を`stagedInputRefs`へ固定する。非Source入力は保存先のAnalysis Sourceを所有者とし、別Revisionのsnapshotを使う場合は入力Revision IDも固定する。Revisionを作らないAI対話／Group展開は同じ配列を追加専用のinvocation auditへ固定する。
+- 非Source入力または変更・削除され得る派生物は対象Revision Bundleへ不変input snapshotとして保存する。不変Source原本はSource ID、path、hashで参照し、Addition画像Source、明示追加context Source、`stagedInputRefs`参照先を削除保護する。走査不能、欠損、hash不一致はfail-closedとし、一時staging自体を正本にしない。
 - AI回答を既存Source本文へ破壊的に上書きしない。
 - 対話内容は構造化した履歴を正本とし、summaryに反映する場合は更新後のsummaryを新しいRevisionとして保存する。
 - `summary.md`だけを正本にせず、構造化した対話履歴とRevision履歴から再生成できるようにする。
@@ -270,6 +274,7 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 - 別Sourceの対話履歴と混在しない。
 - 過去の対話について、送信時のRevision summary、Group展開結果、各入力のハッシュ、モデル、prompt schema version、結果状態を再確認できる。
 - 送信対象外のSource、音声・動画原本、`localOpenUrl`がstaging directoryに含まれず、処理後にstaging directoryが残らない。
+- 正本Revisionが保存済みのJobを復旧した場合、Claudeを再実行せずmaterialized view、親Manifest、Processing Jobの同期だけで収束する。
 
 ## 初期実装順
 

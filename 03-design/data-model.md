@@ -116,8 +116,9 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 - Source Manifest schema version 3は、新規canonical Analysis Sourceの`generation.operationId`と`presentationSummary`、親Sourceの`analysisCompletions`を定義する。`presentationSummary`は任意、`generation.operationId`はversion 3で新規生成するAnalysisに必須とする。
 - Source Manifest schema version 4はExternal Ticket Sourceの`externalTicket.schemaVersion: 1`と、External Ticket Attachmentの来歴recordを追加する。既存version 1〜3を読み、version 4 reader、SQLite migration、Bundle検証、再索引をwriterより先に提供する。既存Sourceを読込時または一括処理でversion 4へ変換しない。
 - Analysis Revision schema version 2は、`operationId`、`rawTranscriptRefs`、`transcriptTransformSteps`、`dictionaryRevisionRefs`、訂正版snapshot、`requestFingerprint`を定義する。音声・動画の訂正再解析で新規作成するRevisionはversion 2を必須とする。
+- Analysis Revision schema version 3は、初回解析とRevision再分析の`stagedInputRefs`と不変input snapshot参照を定義する。version 1／2／3 readerとSQLite再構築をwriterより先に提供し、切替後にClaudeが生成するRevisionはversion 3を必須とする。既存version 1／2 Revisionへ推測した`stagedInputRefs`をbackfillしない。Revisionを作らないAI対話／Group展開の追加専用invocation auditも同じrecord schemaを使う。
 - 既存のManifest version 1／2とRevision version 1は読み取り互換で残す。欠落した`operationId`、Transcript来歴、`presentationSummary`を推測・合成・一括backfillせず、対応機能が必要な場合は手動レビュー対象にする。
-- version 3 Source／version 2 Revisionの切替順は、(1) version 1／2／3 readerと旧フィールド解決規則を先に提供、(2) SQLiteへnullable列・新規テーブル・再同期項目をtransactionで追加、(3) Bundle走査でID、hash、重複を検証、(4) `operation_id IS NOT NULL`を条件とする部分一意索引を作成、(5) 検証に成功した後だけversion 3 Source／version 2 Revision writerを有効化、の順とする。External Ticket Sourceのversion 4切替は前項のversion 1〜4 readerから始める別の後続migrationとし、version 3切替を飛ばした一括変換にしない。
+- version 3 Source／version 2 Revisionの既存切替順は、(1) readerと旧フィールド解決規則、(2) SQLite migration、(3) Bundle検証、(4) 部分一意索引、(5) writer有効化の順を維持する。Revision version 3も同じreader先行順序で、`stagedInputRefs`用の再構築可能なSQLite表、Bundle内snapshotと参照hashの検証を追加してからwriterを有効化する。External Ticket Sourceのversion 4切替は別の後続migrationとし、いずれも旧Bundleを一括変換しない。
 - 既存行のnullable `operation_id`はlegacy読み取り互換のためだけに許容する。新規writerはnullを拒否する。重複、schema不明、hash不一致、索引作成失敗のいずれかを検出した場合はwriter切替をfail-closedで停止し、旧データを変更しない。
 
 親Source Manifestの`analysisCompletions`は追加専用recordの配列とし、各recordは`operationId`、`analysisSourceId`、`revisionId`、`summarySnapshotSha256`、`completedAt`を持つ。同じ`operationId`・同じ参照・同じhashの追加は冪等な成功とし、同じ`operationId`で参照またはhashが異なる場合は`analysis_integrity_failed`として上書きしない。別`operationId`のrecordは既存recordを削除せず追加する。この投影はAnalysisの成功境界ではなく、`AnalysisStore`だけがcanonical Analysis保存後に更新する。Processing Jobは投影先を`originatingSourceId`として1件だけ固定し、複数の`usedSourceIds`やGroupメンバーへ完了状態を配布しない。
@@ -215,7 +216,7 @@ Analysis一覧表示用に、Analysis Sourceは`presentationSummary`を持てる
 
 ### Analysis Revision
 
-Analysis Sourceに属する不変の再分析履歴。`revisionNumber`、作成日時、理由、追加情報（テキスト、画像、URL）、追加画像Source ID、追加情報種別、ユーザー指示、使用Provider／モデル、確認状態、使用Source ID、直前Revisionとの差分、summary本文の不変スナップショット、`summaryPath`、`summarySha256`を持つ。summary本文を持たないRevision、またはハッシュだけのRevisionは作らない。
+Analysis Sourceに属する不変の解析履歴。初回AnalysisもRevision 1として表し、`revisionNumber`、作成日時、理由、追加情報（テキスト、画像、URL）、追加画像Source ID、追加情報種別、ユーザー指示、使用Provider／モデル、確認状態、使用Source ID、直前Revisionとの差分、summary本文の不変スナップショット、`summaryPath`、`summarySha256`、`stagedInputRefs`を持つ。summary本文または送信入力監査を持たない新規Revision、ハッシュだけのRevisionは作らない。
 
 最新の`summary.md`は最新Revisionの保存済みsnapshotから生成するmaterialized viewであり、正本ではない。すべてのRevisionを構造化して保存し、過去summary、差分、根拠Sourceを詳細画面で逆引きできるようにする。
 
@@ -239,9 +240,29 @@ Analysis Sourceに属する不変の再分析履歴。`revisionNumber`、作成�
   ],
   "correctedTranscriptSnapshotPath": "transcript-corrected.md",
   "correctedTranscriptSha256": "...",
+  "stagedInputRefs": [
+    {
+      "revisionId": "revision-2",
+      "inputOwnerSourceId": "01K2ABC...",
+      "inputRevisionId": null,
+      "contentRole": "selected_original",
+      "inputType": "image",
+      "contentType": "image/png",
+      "sourceRelativePath": "source.png",
+      "stagingLogicalPath": "inputs/addition-1.png",
+      "stagedSha256": "...",
+      "transformation": {"kind": "none", "version": 1},
+      "originalSha256": "...",
+      "snapshotPath": null
+    }
+  ],
   "requestFingerprint": "..."
 }
 ```
+
+`stagedInputRefs`は、当該RevisionでClaudeへ実際に渡した全fileの固定順配列である。各recordは対象`revisionId`、`inputOwnerSourceId`、nullableな入力`inputRevisionId`、`contentRole`、`inputType`、元の安全な相対`sourceRelativePath`、staging内の一意な論理path、staged bytesのSHA-256、MIME `contentType`、transformation種別／version、原ファイルSHA-256、nullableな不変`snapshotPath`を持つ。非Source入力は保存先のAnalysis Source IDを`inputOwnerSourceId`とし、元bytesを対象Revision Bundle内へsnapshotして`originalSha256`を固定し、`sourceRelativePath`にはその不変snapshotの相対pathを使う。fieldの欠落、論理path重複、Bundle外path、symlink、hash不一致はfail-closedとする。
+
+非Source入力、または将来変更・削除され得るTranscript、代表フレーム、辞書excerpt等の派生fileは、対象Revision Bundleの`inputs/`へ不変input snapshotとして保存する。不変Source原本はSource ID、安全な相対path、Manifestの原ファイルSHA-256を固定して直接参照できるが、そのSourceを削除保護対象にする。stagingはこれらの参照またはsnapshotから再生成するcopyであり正本ではない。`stagedInputRefs`の順序、論理path、hashから当時Claudeへ渡したbyte集合を再現・検証できなければ、再送、再分析、削除を行わない。
 
 `rawTranscriptRefs`は配列とし、各要素へ録音Source IDを含めて`system`と`microphone`の生Transcriptをrole別に不変で保持する。role別Transcriptを統合した場合は、統合結果の不変snapshotのパスとSHA-256、`mergeAlgorithmVersion`、統合時の入力順序をRevisionへ保存する。訂正はrole別Transcriptと統合後Transcriptのどちらへ適用したかを`appliedTo`として記録する。訂正版Transcriptから再生成したRevisionでも、role別の生Transcriptと過去Revisionは保持する。
 
@@ -265,6 +286,7 @@ Revisionは実際に行った変換を`transcriptTransformSteps`の順序付き�
 10. 訂正版snapshotのhash
 11. pipeline version、統合algorithm version、辞書補正algorithm version、訂正algorithm version
 12. 選択した追加Source IDとhash
+13. `stagedInputRefs`の固定順、論理path、staged／original hash、transformation種別／version
 
 `requestFingerprint`が一致するだけで、異なる`operationId`のoperationを自動統合しない。一致は監査上の同一入力を示すに留め、収束の判断は`operationId`で行う。
 
@@ -272,7 +294,7 @@ RevisionはSummary本文から抽出した`actionItems`を持てる。各Action�
 
 ### Source Addition
 
-Analysis Revisionへ関連付ける追加情報。テキスト、画像、URLだけを受け付ける。画像は必ず独立した不変Sourceとして保存する。音声、動画、PDFはSource Additionの種別に含めず、新規一次Sourceとして取り込み、必要なら同じGroupへ関連付ける。
+Analysis Revisionへ関連付ける追加情報。テキスト、画像、URLだけを受け付ける。画像は必ず独立した不変Sourceとして保存し、Addition record、Revision、`stagedInputRefs`からSource IDとhashを参照して削除保護する。音声、動画、PDFはSource Additionの種別に含めず、新規一次Sourceとして取り込み、必要なら同じGroupへ関連付ける。明示追加context SourceもRevisionへIDを固定して削除保護する。
 
 ### Raw Transcript
 
@@ -358,13 +380,13 @@ MVPで同時に適用できるのは、共通辞書と、ユーザーが明示�
 
 ### Provenance URL
 
-Sourceまたは派生Sourceが参照する出典URL。`aiDisplayUrl`、ローカルVault限定の`localOpenUrl`、抽出元Source ID、抽出方法（Vision OCR、提供テキスト、ユーザー入力）、抽出日時、確認状態を持つ。`aiDisplayUrl`はqueryとfragmentを除去し、AI送信・AI出力表示にだけ使う。`localOpenUrl`は既定ブラウザで開くためだけに使い、Claude、AI出力、Markdown、ログへ渡さない。
+Sourceまたは派生Sourceが参照する出典URL。`aiDisplayUrl`、ローカルVault限定の`localOpenUrl`、抽出元Source ID、抽出方法（画像、提供テキスト、ユーザー入力）、抽出日時、確認状態を持つ。`aiDisplayUrl`はqueryとfragmentを除去し、AI送信・AI出力表示にだけ使う。`localOpenUrl`は既定ブラウザで開くためだけに使い、Claude、AI出力、Markdown、ログへ渡さない。
 
-画像ではローカルVision OCRの検出結果に基づくURLマスク済み派生画像のSource ID、パス、SHA-256も保存する。OCR、URL解析、マスクの失敗時は自動送信を止め、`needs_review`とする。
+画像からのURL抽出は任意であり、原画像送信の前提にしない。抽出する場合は推測・補完せず、query／fragment除去に成功した値だけを`aiDisplayUrl`として保存・表示・送信する。ユーザーが明示選択した原画像は未マスクで会社契約Claude Codeへ送信でき、Vision OCR、URL領域マスク、マスク失敗時の送信停止を必須としない。
 
 ### Analysis Conversation
 
-Analysis Sourceに属する追加専用の対話履歴。発言、回答、日時、使用Provider／モデル、対象`analysisSourceId`、基準`revisionId`、送信時の`summaryPath`とSHA-256、ユーザーが明示選択した追加Source ID／Group ID、Group展開後のSource ID snapshot、実際に使用した個別Source／派生物のIDとハッシュ、prompt schema version、送信日時、結果状態を保存する。対話の文脈に未選択のSourceやGroupを暗黙に追加しない。
+Analysis Sourceに属する追加専用の対話履歴。発言、回答、日時、使用Provider／モデル、対象`analysisSourceId`、基準`revisionId`、送信時の`summaryPath`とSHA-256、ユーザーが明示選択した追加Source ID／Group ID、Group展開後のSource ID snapshot、実際に使用した個別Source／派生物のIDとハッシュ、`stagedInputRefs`、prompt schema version、送信日時、結果状態を保存する。対話の文脈に未選択のSourceやGroupを暗黙に追加しない。Revisionを作らないGroup展開も同じ配列を追加専用のAI invocation auditへ保存する。
 
 Groupの後日変更やRevision追加で過去の送信文脈を変えないため、対話ごとに送信時のsnapshotを必ず使う。対話、再分析、Group展開で選択したメディアはADR-008に従う前処理済み文字起こし・代表フレームだけを使い、未前処理または前処理失敗ならfail-closedで送信しない。
 
@@ -376,7 +398,7 @@ Groupの後日変更やRevision追加で過去の送信文脈を変えないた�
 
 ### AI Staging
 
-Claude実行ごとに作る一時ディレクトリ。`jobId`と`createdAt`を持ち、選択済みの通常画像、テキスト、安全化済みURL、文字起こし、代表フレームを配置する。Transcript訂正による再解析では、訂正版Transcriptと、適用済み辞書項目だけを抽出した派生excerptも配置できる。`dictionaryExcerptVersion: 1`は元辞書Revision参照、使用した`entryId`、正しい表記、scopeを固定key順で持つUTF-8 JSONとし、entryをscope（common、group）と`entryId`でsortする。excerpt正本をRevision監査領域へ不変保存して永続パスとSHA-256を記録し、stagingにはcopyだけを置く。辞書Revision snapshot全体はユーザーが明示選択しない限り配置しない。境界の正本は[ADR-012](../06-adr/ADR-012-minimal-claude-staging.md)とする。URLを含む画像はマスク済み派生画像を使う。Source Bundle全体、音声・動画原本、`localOpenUrl`は配置しない。stagingのファイル一覧と入力ハッシュは監査記録へ残せるが、staging自体は永続化せず、処理完了、失敗、タイムアウト、中断後に削除する。次回起動時は、実行中Jobへ属さない残存stagingを削除する。
+初回解析、Revision再分析、AI対話、Group展開の全Claude実行で作る再生成可能な一時ディレクトリ。metadataに`jobId`、`operationId`、`createdAt`を持ち、Claudeのcwdに固定する。Local Vault、Source Bundle、別Source Bundleをcwdまたは`--add-dir`として直接公開しない。選択済みの未マスク原画像、テキスト、PDF、安全化済みURL、固定済み文字起こし、代表フレームを配置できる。Transcript訂正による再解析では、訂正版Transcriptと、適用済み辞書項目だけを抽出した派生excerptも配置できる。`dictionaryExcerptVersion: 1`は元辞書Revision参照、使用した`entryId`、正しい表記、scopeを固定key順で持つUTF-8 JSONとし、entryをscope（common、group）と`entryId`でsortする。excerpt正本をRevision監査領域へ不変保存して永続パスとSHA-256を記録し、stagingにはcopyだけを置く。辞書Revision snapshot全体はユーザーが明示選択しない限り配置しない。境界の正本は[ADR-012](../06-adr/ADR-012-minimal-claude-staging.md)とする。音声・動画原本、`localOpenUrl`、未選択file、別Sourceの未選択原本、Source Bundle全体、Vault全体は配置しない。staging自体は正本にせず、全fileをRevisionの`stagedInputRefs`、またはRevisionを作らないAI対話／Group展開の追加専用invocation auditへ固定する。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時は実行中Jobへ属さない残存stagingをすべて回収する。正本Revisionが保存済みならClaudeを再実行せず、状態同期だけを行う。
 
 ### Recording Input Preference and Monitoring
 
@@ -466,6 +488,7 @@ processing_jobs
 groups
 analyses                 # legacy Analysis Bundleの索引
 analysis_revisions
+analysis_staged_inputs
 revision_additions
 provenance_urls
 analysis_conversations
@@ -508,11 +531,11 @@ review_items
 knowledge_items
 ```
 
-SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯一の永続正本にせず、破損・削除時にSource Bundleを走査して再構築できる索引として設計する。`task_sources`、`task_groups`、`group_sources`はそれぞれ`task.json`の`sourceLinks`／`groupLinks`、`group.json`の`sourceLinks`から再構築する索引であり、関係の正本ではない。`transcript_corrections`、`terminology_revisions`、`terminology_entries`、`transcript_normalizations`も、訂正Source Bundle、辞書Revisionファイル、補正履歴ファイルから再構築する索引であり、正本ではない。
+SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯一の永続正本にせず、破損・削除時にSource Bundleを走査して再構築できる索引として設計する。`task_sources`、`task_groups`、`group_sources`はそれぞれ`task.json`の`sourceLinks`／`groupLinks`、`group.json`の`sourceLinks`から再構築する索引であり、関係の正本ではない。`analysis_staged_inputs`はRevisionと追加専用AI invocation auditの`stagedInputRefs`から再構築する削除保護・監査用索引であり、送信入力の正本ではない。`transcript_corrections`、`terminology_revisions`、`terminology_entries`、`transcript_normalizations`も、訂正Source Bundle、辞書Revisionファイル、補正履歴ファイルから再構築する索引であり、正本ではない。
 
 `processing_jobs.operation_id`と`sources.operation_id`（新規`kind: analysis`／`topic`）には、legacyのnull行を除く部分一意制約を置く。同一操作・同一payloadの再試行は既存Sourceへ収束し、同じIDで異なるpayloadはfail-closedとする。新規writerはrequiredなoperation IDのnullを拒否する。Bundle走査による再索引で重複を検出した場合はfail-closedとし、重複の自動統合・自動削除を行わない。
 
-`analysis_revisions.operation_id`にもlegacyのnull行を除く部分一意制約を置き、version 2 writerはnullを拒否する。再索引で同じ`operationId`を持つRevisionが複数見つかった場合はfail-closedとし、自動統合・自動削除を行わない。
+`analysis_revisions.operation_id`にもlegacyのnull行を除く部分一意制約を置き、version 2／3 writerはnullを拒否する。再索引で同じ`operationId`を持つRevisionが複数見つかった場合はfail-closedとし、自動統合・自動削除を行わない。
 
 `external_ticket_remote_keys`はconfirmed identityのremote key、取得scope、remote version、snapshot SHA-256、Source ID、親Source IDをBundleから再構築する索引とする。同じsnapshot identityに異なるSource ID、同じremote key・scope・non-null versionに異なるhash、同じSource IDに異なるsnapshot hashまたはremote identity、系列分岐／複数tipを検出した場合はfail-closedとする。remote keyのみの重複は更新系列として許容する。`external_ticket_import_jobs.import_operation_id`は一意とし、同じoperation ID・fingerprint・hashは収束、異なるpayloadはfail-closedとする。Jobはretry、pagination、rate limit、timeout、部分取得を表す運用状態であり、snapshot正本ではない。
 
@@ -531,6 +554,7 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - `manifest.json`とMarkdownの更新は一時ファイルへ書き、同一ファイルシステム上で置き換える。
 - SQLite更新に失敗してもSource Bundleを失わない。
 - 再索引時はSource IDと`schemaVersion`を使用する。
+- Claude実行前と削除前は`VaultMutationLock`内で、Addition画像Source、明示追加context Source、Revisionおよび追加専用AI invocation auditの`stagedInputRefs`が参照するSource／Revision／snapshotを走査し、所有Source ID、相対path、symlink不使用、staged／original SHA-256を検証する。走査不能、欠損、Bundle外path、hash不一致ではfail-closedとし、Analysis／Revision削除時も参照先をcascade deleteしない。
 - Project／Task／Group関連を変更しても原本ファイルを移動・複製しない。
 - 関係の更新時は、Task–Source／Task–Groupなら対象`task.json`だけ、Group–Sourceなら対象`group.json`だけを更新する。Source Manifestへ逆方向のID配列を書き戻さない。
 - Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。

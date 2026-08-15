@@ -32,12 +32,15 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 共通辞書とGroup／案件別辞書をローカルに保持し、次回録音の用語ヒントと文字起こし後の決定的な表記補正へ使う。同時適用は共通辞書と明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない（将来実装）。
 - Sourceは既定で保護ロックし、Manifestを正本として扱う。削除は参照整合性確認、一時ロック解除確認、削除確認を通してmacOSのゴミ箱へ移動し、失敗・取消・異常終了時は再ロックする（将来実装）。
 - 外部Output公開は、承認時に固定したMarkdown派生SourceをJira、Confluence、Backlog Adapterへ変換する将来設計とする。送信識別子・結果・添付状態を保存し、結果不明の自動再作成は行わない。資格情報はアプリ内部でmacOS Keychainからのみ解決し、設定、Vault、URL、プロセス、ログ、診断、Gitへ出さない。
+- 外部チケット取り込みは公開と別の将来設計とし、Jira／Backlogチケットを不変External Ticket Sourceとして保存してから、ユーザー確認後にTaskまたはGroupへ関連付ける。Read Adapterは外部ticketを変更せず、APIなしの手動取り込みでも利用できる。
 
 ## 文書一覧
 
 - [プロダクトビジョン](01-vision/product-vision.md)
 - [MVPスコープ](02-requirements/mvp-scope.md)
 - [Source・Group・Task・Output要件](02-requirements/source-group-task-output.md)
+- [Topic Source・Task・WBS・PM支援要件](02-requirements/topic-source-task-wbs.md)
+- [External Ticket Source要件](02-requirements/external-ticket-source.md)
 - [録音忘れ防止要件](02-requirements/recording-reminder.md)
 - [録音入力選択・無音警告要件](02-requirements/recording-input-monitoring.md)
 - [Transcript訂正・用語辞書要件](02-requirements/transcript-correction-terminology.md)
@@ -61,6 +64,8 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - [ADR-012 Claude実行には最小一時staging directoryを使用する](06-adr/ADR-012-minimal-claude-staging.md)
 - [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](06-adr/ADR-013-approved-external-publication.md)
 - [ADR-014 Transcript訂正を不変Sourceとし、用語辞書で決定的に補正する](06-adr/ADR-014-transcript-correction-terminology.md)
+- [ADR-015 Topic SourceとTask／WBSを既存正本モデルへ追加する](06-adr/ADR-015-topic-source-task-wbs.md)
+- [ADR-016 外部チケットは不変External Ticket Sourceとして取り込む](06-adr/ADR-016-external-ticket-source.md)
 - [PoC一覧](07-poc/README.md)
 - [Phase 0 配布・権限スパイク結果](07-poc/phase-0-distribution-permissions-result.md)
 

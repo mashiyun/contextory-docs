@@ -2,9 +2,9 @@
 
 ## Source統一モデル
 
-一次入力、Analysis、Output、Topic Sourceはすべて同じ`Source`として扱い、`input`、`analysis`、`output`、`topic`は種別・属性で表現する。親Source、生成操作、実際に使用したSource IDを固定保存し、一次Sourceと派生Sourceのいずれも再利用可能にする。正規モデルは[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)と[ADR-015](../06-adr/ADR-015-topic-source-task-wbs.md)であり、現行実装の独立Analysis BundleとContextは読み取り互換の表現として維持する。
+一次入力、Analysis、Output、Topic Source、External Ticket Sourceはすべて同じ`Source`として扱い、`input`、`analysis`、`output`、`topic`は種別・属性で表現する。親Source、生成操作、実際に使用したSource IDを固定保存し、一次Sourceと派生Sourceのいずれも再利用可能にする。正規モデルは[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)、[ADR-015](../06-adr/ADR-015-topic-source-task-wbs.md)、[ADR-016](../06-adr/ADR-016-external-ticket-source.md)であり、現行実装の独立Analysis BundleとContextは読み取り互換の表現として維持する。
 
-詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[Topic Source・Task・WBS・PM支援要件](../02-requirements/topic-source-task-wbs.md)、[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)を参照する。
+詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[Topic Source・Task・WBS・PM支援要件](../02-requirements/topic-source-task-wbs.md)、[External Ticket Source要件](../02-requirements/external-ticket-source.md)、[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)を参照する。
 
 ## 時刻の保存と表示
 
@@ -114,9 +114,10 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 ### 今回のschema切替
 
 - Source Manifest schema version 3は、新規canonical Analysis Sourceの`generation.operationId`と`presentationSummary`、親Sourceの`analysisCompletions`を定義する。`presentationSummary`は任意、`generation.operationId`はversion 3で新規生成するAnalysisに必須とする。
+- Source Manifest schema version 4はExternal Ticket Sourceの`externalTicket.schemaVersion: 1`と、External Ticket Attachmentの来歴recordを追加する。既存version 1〜3を読み、version 4 reader、SQLite migration、Bundle検証、再索引をwriterより先に提供する。既存Sourceを読込時または一括処理でversion 4へ変換しない。
 - Analysis Revision schema version 2は、`operationId`、`rawTranscriptRefs`、`transcriptTransformSteps`、`dictionaryRevisionRefs`、訂正版snapshot、`requestFingerprint`を定義する。音声・動画の訂正再解析で新規作成するRevisionはversion 2を必須とする。
 - 既存のManifest version 1／2とRevision version 1は読み取り互換で残す。欠落した`operationId`、Transcript来歴、`presentationSummary`を推測・合成・一括backfillせず、対応機能が必要な場合は手動レビュー対象にする。
-- 切替順は、(1) version 1／2／3 readerと旧フィールド解決規則を先に提供、(2) SQLiteへnullable列・新規テーブル・再同期項目をtransactionで追加、(3) Bundle走査でID、hash、重複を検証、(4) `operation_id IS NOT NULL`を条件とする部分一意索引を作成、(5) 検証に成功した後だけversion 3 Source／version 2 Revision writerを有効化、の順とする。
+- version 3 Source／version 2 Revisionの切替順は、(1) version 1／2／3 readerと旧フィールド解決規則を先に提供、(2) SQLiteへnullable列・新規テーブル・再同期項目をtransactionで追加、(3) Bundle走査でID、hash、重複を検証、(4) `operation_id IS NOT NULL`を条件とする部分一意索引を作成、(5) 検証に成功した後だけversion 3 Source／version 2 Revision writerを有効化、の順とする。External Ticket Sourceのversion 4切替は前項のversion 1〜4 readerから始める別の後続migrationとし、version 3切替を飛ばした一括変換にしない。
 - 既存行のnullable `operation_id`はlegacy読み取り互換のためだけに許容する。新規writerはnullを拒否する。重複、schema不明、hash不一致、索引作成失敗のいずれかを検出した場合はwriter切替をfail-closedで停止し、旧データを変更しない。
 
 親Source Manifestの`analysisCompletions`は追加専用recordの配列とし、各recordは`operationId`、`analysisSourceId`、`revisionId`、`summarySnapshotSha256`、`completedAt`を持つ。同じ`operationId`・同じ参照・同じhashの追加は冪等な成功とし、同じ`operationId`で参照またはhashが異なる場合は`analysis_integrity_failed`として上書きしない。別`operationId`のrecordは既存recordを削除せず追加する。この投影はAnalysisの成功境界ではなく、`AnalysisStore`だけがcanonical Analysis保存後に更新する。Processing Jobは投影先を`originatingSourceId`として1件だけ固定し、複数の`usedSourceIds`やGroupメンバーへ完了状態を配布しない。
@@ -140,6 +141,57 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 `evidenceSpans`は複数可能な追加専用配列であり、各recordに`spanId`、Topic Revision内で一意な非負整数`displayOrder`、snapshot所有者の`parentSourceId`、原音所有者の`mediaSourceId`、nullableな親Revision ID、raw／revision snapshot種別、安全な相対snapshot path、snapshotと選択byte列のSHA-256、単一`mediaRole`、録音session相対の整数millisecond半開区間、Transcript UTF-8 byte半開区間を保存する。byte端点はUnicode scalar境界とする。原本では両Source IDを同じ録音Source、Revision snapshotでは`mediaSourceId`とroleを固定済み`rawTranscriptRefs`から選ぶ。Topic Source Bundleに親メディアやTranscriptを複製せず、再生はmedia Sourceのroleと時刻へ解決する。親のTranscript訂正・辞書更新・Revision追加では既存spanを移動せず、新しい内容を使うには新spanまたはTopic Revisionを追加する。`parentSourceIds`は全spanの両Source IDのsorted unique unionとし、そのedgeをSource来歴DAGの正本としてTask親子／依存graphから分離する。
 
 AIの話題／Decision／Action候補はTopic Sourceではなく、生成元Analysis Revision内の構造化proposal recordとして保存する。採用・修正・却下・保留は同じAnalysis Sourceの追加専用review eventへ保存し、ユーザー採用後だけ`topic_excerpt`を確定する。Topic Sourceはproposal ID、生成元Analysis Source／Revision ID、採用review event IDを参照し、通常のSourceと同様にGroup、Task、Revision、AI相談、派生Outputの参照先になれる。
+
+### External Ticket Source
+
+Source Manifest `schemaVersion: 4`、`kind: input`、`type: external_ticket_snapshot`を持つ不変Source。Jira／Backlogのチケットを手動またはRead Adapterから同じschemaへ正規化し、Taskそのものにしない。`externalTicket` recordはschema version、import operation ID、identity確認状態、canonical remote key、provider、正規化済みendpoint identity、project／issueの不変IDと表示alias、表示用ticket URL、remote `updatedAt`／version、取得日時、取得方法、adapter version、snapshot serialization version、snapshot path／SHA-256、request fingerprint、取得scope／coverageを持つ。endpoint、表示用ticket URL、request metadata、fingerprintへquery／fragment、userinfo、資格情報を保存しない。ticket本文中のURLは不変なSource内容としてLocal Vaultに保持できるが、AI送信前に既存URL安全化を適用する。
+
+```json
+{
+  "schemaVersion": 4,
+  "sourceId": "01K2TICKET...",
+  "kind": "input",
+  "type": "external_ticket_snapshot",
+  "capturedAt": "2026-08-15T00:31:00Z",
+  "originals": [{"role": "primary", "path": "snapshots/external-ticket.json", "sha256": "...", "contentType": "application/json", "bytes": 1234}],
+  "parentSourceIds": ["previous-snapshot-source-id"],
+  "lineage": {"operation": "external_ticket_import", "usedSourceIds": ["previous-snapshot-source-id"]},
+  "externalTicket": {
+    "schemaVersion": 1,
+    "importOperationId": "uuid",
+    "remoteIdentity": {
+      "state": "confirmed",
+      "canonicalRemoteKey": "sha256-of-canonical-identity",
+      "canonicalRemoteKeyVersion": 1,
+      "provider": "jira",
+      "instanceIdentity": {"kind": "provider_instance_id", "value": "instance-100"},
+      "endpointIdentity": "https://jira.example.invalid/base",
+      "endpointNormalizationVersion": 1,
+      "projectStableId": null,
+      "issueStableId": "20000",
+      "projectKey": "PROJ",
+      "issueKey": "PROJ-123"
+    },
+    "snapshotPath": "snapshots/external-ticket.json",
+    "snapshotSha256": "...",
+    "snapshotSerializationVersion": 1,
+    "remoteUpdatedAt": "2026-08-15T00:30:00Z",
+    "remoteVersion": "...",
+    "retrievedAt": "2026-08-15T00:31:00Z",
+    "acquisitionMethod": "api",
+    "adapterVersion": "...",
+    "requestFingerprint": "...",
+    "coverage": {"mode": "api_complete", "requested": ["attachment_metadata", "comments", "core_fields"], "completed": ["attachment_metadata", "comments", "core_fields"]}
+  },
+  "protection": {"state": "locked"}
+}
+```
+
+canonical remote keyはprovider、providerが保証する不変instance ID（なければ共通version 1規則で正規化したendpoint）、providerが不変と保証するissue ID、scope上必要な場合だけproject不変IDをUTF-8のRFC 8785 canonical JSON化したSHA-256とする。endpointと変更可能なproject／issue keyは表示aliasであり、不変instance IDを使うkeyへ含めない。confirmed identityで同じremote key・scope・remote version（nullable）・snapshot SHA-256を持つSourceは1件だけ許可し、再取り込みはそのSourceへ収束する。non-nullのremote versionが同じなのに異なるhash、同じoperation IDで異なるfingerprint／hash、Source ID重複、identity不整合はfail-closedとする。version変更、またはversionが`null`でのhash変更だけが新Sourceを作り、lock取得時点の一意な系列tipを親に固定する。remote key単独は更新系列を表すため一意制約にしないが、系列の分岐、複数tip、循環はfail-closedとする。manualで不変IDを検証できない場合は`state: unconfirmed`、`canonicalRemoteKey: null`とし、推測した統合・差分・再取得を行わない。
+
+snapshot本文にはタイトル、説明、外部状態、担当者、期限、コメント、添付metadata、project／issueの表示key、remote version／`updatedAt`、identity確認状態、取得scope／coverageをallowlist済みcanonical JSONとして不変保存し、Sourceのprimary originalとpath／hashを一致させる。表示keyはremote identityへ含めないがsnapshot hashへ含める。取得時刻、取得方法、adapter version、endpoint alias、表示用ticket URL、request fingerprint、retry／pagination／rate-limit状態、Job／operation IDはManifest／Jobの取得監査metadataに固定し、payloadとそのhashへ含めない。不透明なraw HTTP応答や取得scope外fieldは保存しない。APIで要求範囲のpaginationが未完了ならstaging／Jobを`partial`としてSourceを確定しない。完全取得後に`VaultMutationLock`内で系列とoperation IDを再検証し、Bundleをatomic commitしてからSQLiteへtransaction投影する。差分と「最新」はこの系列から再生成するviewであり、Taskへの更新候補は両snapshotを根拠にしたproposalとして扱う。選択取得した添付本体は`type: external_ticket_attachment`の独立Sourceとし、選択時の親ticket Source ID、remote attachment ID、保存本体hashを固定する。
+
+snapshot serialization version 1はUTF-8のRFC 8785 JSON Canonicalization Schemeを使う。APIのコメントと添付metadataはprovider profileで定めた不変remote IDを必須としてID順に固定し、欠落または重複はfail-closedにする。manual項目はユーザーが保存時に確認したordinalを保持する。取得scope、coverage、nullable fieldもcanonical JSONへ含め、表示順の偶然や辞書順でhashが変化しないようにする。
 
 ### 汎用Source Revision
 
@@ -388,12 +440,14 @@ Analysisの保存、Summaryの保存、親Source Manifestの完了更新は、�
 - Sourceは複数Project・Taskに関連できる。
 - Sourceは複数Groupから参照でき、Groupは派生Sourceの生成候補を集められる。
 - Topic Sourceは親Source／親Revisionの複数Evidence Spanを参照し、親Sourceを上書き・複製しない。
+- External Ticket Sourceは更新系列の親snapshotを参照し、同じSourceから0件以上のTaskへlinkできる。外部ticket IDはTask IDまたはSource IDにならない。
 - Analysis Sourceは複数の不変Revisionと追加専用の対話履歴を持つ。
 - Taskは複数Source・Analysis・親Taskを来歴として参照できる。
 - Taskは親子・依存をTask IDで参照する。親子関係と依存関係はそれぞれ有向非巡回であり、WBSはGroupにリンクされたTaskの投影である。
 - 派生Output Sourceは入力Task、Analysis Source、親Sourceを来歴として参照し、根拠へ逆引きできる。既存の派生Output Taskは読み取り互換として扱う。
 - Actionは抽出元Revisionと根拠Sourceを参照し、確認済みの場合だけ明示操作でTaskを作成できる。
 - External PublicationはMarkdown派生Output Sourceを参照し、公開先remote IDと結果を保存する。remote IDは削除前の参照整合性確認対象である。
+- External Ticket Sourceは外部公開記録と別のInputであり、Read Adapterは外部ticketを変更しない。
 - Transcript Correction Sourceは対象の録音Sourceと生Transcriptを参照し、生Transcriptを上書きしない。
 - Analysis Revisionは使用した生Transcript、訂正Source、辞書Revisionを参照し、訂正版Transcript snapshotから逆引きできる。
 - Terminology Dictionaryの項目は根拠となる訂正Sourceを参照し、辞書Revisionは補正履歴から参照される。
@@ -427,6 +481,10 @@ external_publications
 publication_approvals
 publication_attempts
 publication_attachments
+external_ticket_snapshots
+external_ticket_remote_keys
+external_ticket_import_jobs
+external_ticket_attachment_refs
 tasks
 task_sources
 task_groups
@@ -456,6 +514,8 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 
 `analysis_revisions.operation_id`にもlegacyのnull行を除く部分一意制約を置き、version 2 writerはnullを拒否する。再索引で同じ`operationId`を持つRevisionが複数見つかった場合はfail-closedとし、自動統合・自動削除を行わない。
 
+`external_ticket_remote_keys`はconfirmed identityのremote key、取得scope、remote version、snapshot SHA-256、Source ID、親Source IDをBundleから再構築する索引とする。同じsnapshot identityに異なるSource ID、同じremote key・scope・non-null versionに異なるhash、同じSource IDに異なるsnapshot hashまたはremote identity、系列分岐／複数tipを検出した場合はfail-closedとする。remote keyのみの重複は更新系列として許容する。`external_ticket_import_jobs.import_operation_id`は一意とし、同じoperation ID・fingerprint・hashは収束、異なるpayloadはfail-closedとする。Jobはretry、pagination、rate limit、timeout、部分取得を表す運用状態であり、snapshot正本ではない。
+
 ## 手動取り込み形式
 
 - 画像: PNG、JPEG、HEIC、HEIF、WebP、GIF、TIFF。
@@ -474,8 +534,9 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - Project／Task／Group関連を変更しても原本ファイルを移動・複製しない。
 - 関係の更新時は、Task–Source／Task–Groupなら対象`task.json`だけ、Group–Sourceなら対象`group.json`だけを更新する。Source Manifestへ逆方向のID配列を書き戻さない。
 - Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。
+- External Ticket Source確定時は`VaultMutationLock`内でschema version、import operation ID／fingerprint、canonical remote key、取得scope／coverage、snapshot primary originalとhash、remote version、一意な親snapshot系列、Source IDを再検証する。同一snapshot identityの重複、non-nullの同じversionに対する異なるhash、系列分岐・複数tip・循環、identity不整合、部分API取得、資格情報を含むpath／fingerprintは拒否する。外部ticket snapshotまたは選択添付を参照するSourceは削除不可とする。
 - Taskの親子・依存を追加・変更する場合は`VaultMutationLock`内で追加後の各全graphを独立に検証し、参照先欠損、重複、自己参照、推移的循環を拒否する。コメント・blockerは基底recordを変更せず追加eventで編集、削除、解消、再開を表し、Task現在値とeventを同じatomic replaceで保存する。
 - MVPのTask削除はarchiveとし、Task参照と履歴を有効なまま保持する。`groupLinks`を持つTask、Group辞書、Analysis／Topic／Output／公開監査から参照されるGroupのarchiveを拒否する。Source削除とGroup archiveの参照走査はロック内で書込み直前に行い、破損、不明schema、走査不能時はfail-closedとする。cascade deleteは行わない。
 - 既存`analyses/`を走査してlegacy `analysisId`と正規`sourceId`の対応を作り、旧Bundleは読み取り可能なまま残す。対応、Revision 1の不変snapshot、Bundle走査によるSQLite再構築を確認するまで新規書き込みを正規モデルへ切り替えない。
 
-詳細なSQLiteスキーマとManifest schemaは未確定である。保存方式の基本判断は[ADR-001](../06-adr/ADR-001-local-vault-storage.md)で確定する。
+列型・索引名を含む詳細なSQLite DDLは実装前に確定する。Source Manifest version 4とExternal Ticket record version 1の正本境界、保存方式の基本判断は本節、[ADR-016](../06-adr/ADR-016-external-ticket-source.md)、[ADR-001](../06-adr/ADR-001-local-vault-storage.md)に従う。

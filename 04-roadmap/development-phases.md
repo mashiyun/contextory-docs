@@ -53,6 +53,24 @@ Group実装後は、[Topic Source・Task・WBS・PM支援要件](../02-requireme
 
 簡易タイムライン、Markdown／CSV／Excel出力、要件変更・影響分析、ステータスレポート、顧客フィードバック整理、優先順位付け、リリース準備確認、Jira／Backlog同期はこの順の後続とする。工数、原価、リソース配分、複数ユーザー共同編集、権限管理は対象外とする。
 
+## 次期External Ticket Source実装順
+
+[External Ticket Source要件](../02-requirements/external-ticket-source.md)と[ADR-016](../06-adr/ADR-016-external-ticket-source.md)に従い、外部公開とは別の読み取り専用取り込みを次の順で実装する。
+
+1. Source Manifest version 4 reader、canonical snapshot、`unconfirmed`手動取り込み、operation ID復旧
+2. provider identity profile、confirmed remote identity・重複／系列判定
+3. snapshot差分
+4. SourceからTask作成／既存Task Link
+5. Jira Read Adapter
+6. Backlog Read Adapter
+7. 添付選択取得
+8. 手動再取得
+9. 必要性確認後の同期支援
+
+段階1はversion 1〜4 reader、SQLite migration、Bundle／snapshot検証、再索引、version 4 writerの順で導入し、既存Sourceを一括backfillしない。providerの不変IDを検証できない手動Sourceは`unconfirmed`として保存し、内容hashによる自動統合を行わない。Group／Task関連はSource確定と別transactionとし、Task schema version 3の`sourceLinks`だけを更新する。
+
+Jira Cloud／Data Center、Backlog対象環境、認証方式、provider identity profile、pagination／rate limit／retryの具体値を確定するまで段階5／6を開始しない。添付size上限とredirect規則は段階7の開始ゲートとする。これらは段階1の手動保存を妨げない。reader・SQLite migration・Bundle検証を先行させるまでRead Adapter writerを有効化せず、取り込み段階に外部ticketの変更、コメント、完了、外部公開Adapterの呼出しを含めない。
+
 ## Phase 0: 基盤
 
 Status: 完了（2026-08-11）

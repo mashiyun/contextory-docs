@@ -4,8 +4,8 @@
 
 - 最低対応macOSバージョンをいくつにするか。会社MacのOSを確認して確定する。
 - SQLite accessに標準C API、軽量wrapper、ORMのどれを使うか。
-- Source Manifestの必須項目とschema migrationをどう設計するか。今回確定した`generation.operationId`、Transcript来歴、旧フィールド読込順は再検討対象にせず、残る項目とmigration実装単位だけを決める。
-- SQLite Indexの初期テーブル、全文検索、再構築処理をどう設計するか。今回確定した`operationId`一意制約、重複時fail-closed、辞書・補正索引のBundle正本性は再検討対象にしない。
+- Source Manifestの残る必須項目とschema migration単位をどう設計するか。今回確定した`generation.operationId`、Transcript来歴、旧フィールド読込順、External Ticket Sourceのversion 4／record version 1境界は再検討対象にしない。
+- SQLite Indexの列型、索引名、全文検索、再構築処理をどう設計するか。今回確定した`operationId`一意制約、重複時fail-closed、辞書・補正索引のBundle正本性、External Ticketのsnapshot／remote key／Job索引が再構築可能な投影であることは再検討対象にしない。
 - URL検出用のローカルVision OCRは確定している。画面本文の一般OCRを実装するか、実装する場合の方式と保存範囲は未決とする。
 - SonnetからOpusを提案する自動ルーティング条件と、実行前確認をどの範囲で必要にするか。
 - 画面録画から音声とキーフレームをどのように抽出するか。一般本文OCRは未決のため、URL検出用Vision OCRと混同しない。
@@ -45,6 +45,9 @@
 - Library／Review Interfaceを同一アプリ内の別ウィンドウ、別アプリ、ローカルWeb UIのどれにするか。
 - 保護ロックの解除履歴、ゴミ箱からの復元時のロック状態、参照中Sourceを削除候補画面でどう説明するか。
 - Jira／ConfluenceのCloud・Data Center種別、Backlogの会社環境、必須Custom Field、Project／Space選択、添付制限をどう確定するか。Adapter実装時のAPI仕様はAtlassian／Nulabの公式資料だけで確認する。
+- Jira Read Adapterの対象をCloud／Data Centerのどちらにするか、Backlog対象環境・認証方式・必要scope、instance IDの不変性、issue IDの一意scopeと不変性をどう確定するか。Read Adapterのpagination、rate limit、retry、timeout、pagination中のremote更新を検出するconsistency anchorの具体方式は、対象環境の公式資料で確認してから固定する。これは各Read Adapterの開始ゲートであり、`unconfirmed`手動取り込みを妨げない。
+- 手動取り込みの`unconfirmed` External Ticket Sourceを、Adapterが取得した不変issue IDと照合してどの確認UIでconfirmed系列へ関連付けるか。既存Sourceのidentityを上書きせず、確認eventまたは新Sourceで関連を表す方式は段階2開始前に確定する。推測によるremote key付与・既存snapshotとの自動統合はしない。
+- 添付のprovider別size上限、期限付きURL／cross-origin redirect、Content-Type不一致をどう扱うか。元credentialをredirect先へ転送しないことは確定しており、具体値は添付選択取得段階の開始ゲートとする。
 - 外部公開で`outcome_unknown`となった場合のremote確認、既存remoteへの紐付け、明示的な再作成のUXをどう設計するか。
 - Transcript訂正のUI形態（該当箇所の直接編集、全文編集、誤変換候補の提示）をどうするか。
 - 辞書登録候補を提示するタイミング（訂正直後、レビュー時、まとめて確認）と、確認負荷をどう抑えるか。
@@ -70,7 +73,7 @@ Phase 0で、GitHub Releaseによる受け渡し、SHA-256照合、ad-hoc署名�
 - Group辞書の適用範囲: MVPは共通辞書＋ユーザーが明示選択した1つのGroup辞書までとし、複数Group所属時も自動選択しない。詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)と[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)。
 - 辞書Revisionの粒度と過去Analysisの再現: scope単位のRevision snapshotを`dictionaryRevisionRefs`（`scope`、`scopeId`、`revisionId`、`snapshotPath`、`snapshotSha256`）として固定参照する。
 - 同一操作の収束条件: `operationId`をidempotency keyとし、`requestFingerprint`は監査用に分離する。fingerprint一致だけで別operationを統合しない。
-- schema切替順: version 1／2／3 reader、SQLite nullable列・新規テーブル、Bundle検証、legacy nullを除く部分一意索引、検証後の新規writer有効化の順とする。旧Bundleを一括backfillしない。
+- schema切替順: version 3 Source／version 2 Revisionはversion 1／2／3 reader、SQLite nullable列・新規テーブル、Bundle検証、legacy nullを除く部分一意索引、検証後の新規writer有効化の順とする。External Ticket Source version 4はversion 1〜4 reader、SQLite migration、Bundle／snapshot検証、再索引、version 4 writerの別migrationとする。旧Bundleを一括backfillしない。
 - Transcript訂正位置: 固定snapshot上のUTF-8 byte半開区間を使い、scalar境界、訂正前byte列、非重複を検証する。別モデルのTranscriptへ自動追従させない。
 - role別Transcript統合: `mergeAlgorithmVersion: 1`はsession相対の開始時刻、終了時刻、role順、元segment連番で安定sortし、必須時刻が不正ならfail-closedとする。
 - 辞書照合単位: `normalizationAlgorithmVersion: 1`はUnicode scalar列の完全一致とし、暗黙の大文字小文字・全角半角・かな・送り仮名・Unicode正規化を行わない。

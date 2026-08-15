@@ -26,6 +26,7 @@ ADRにはContext、Decision、Consequences、Statusを記載します。未決�
 - [ADR-013 外部Output公開は承認済みMarkdownとAdapterを介して行う](ADR-013-approved-external-publication.md)
 - [ADR-014 Transcript訂正を不変Sourceとし、用語辞書で決定的に補正する](ADR-014-transcript-correction-terminology.md)
 - [ADR-015 Topic SourceとTask／WBSを既存正本モデルへ追加する](ADR-015-topic-source-task-wbs.md)
+- [ADR-016 外部チケットは不変External Ticket Sourceとして取り込む](ADR-016-external-ticket-source.md)
 
 ## Amended
 

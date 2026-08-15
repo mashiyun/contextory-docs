@@ -34,6 +34,7 @@ Capture / Audio Recording / Screen Recording
 - AI Adapter: 会社契約のClaude Codeを、ユーザーがSource単位で確認した業務情報の許可済み処理境界とする。個人Claudeへは送信しない。
 - AI Staging: Source Bundleから選択済みの通常画像・テキスト、安全化済みURL、文字起こし、代表フレームだけを一時ディレクトリへ複製し、Claude処理後に削除する。URLを含む画像はマスク済み派生画像を使い、音声・動画原本と`localOpenUrl`は配置しない。
 - Source Lineage: Input、Analysis、Output、Topic Sourceを同じSourceとして保存し、親Sourceと実際に使用した個別Source IDを固定する来歴管理。Topic SourceのEvidence Spanは不変snapshot、snapshotと選択byte列のhash、role、整数millisecond／UTF-8 byte半開区間を固定し、全親参照を含むSource来歴DAGを`VaultMutationLock`内で検証する。
+- External Ticket Import: Jira／BacklogのRead Adapterまたは手動入力をSource Manifest version 4、`kind: input`、`type: external_ticket_snapshot`へ正規化する境界。検証済みの不変remote ID、endpoint identity、operation ID、完全取得scope、snapshot系列、重複、差分を検証する。API pageは一時stagingへ置き、完全性確認後だけ`VaultMutationLock`内でSourceを確定する。外部ticketを変更せずTaskを自動作成・更新しない。
 - Analysis Revision: 同じAnalysis Sourceへのテキスト・画像・URL追加、再分析、summary差分、過去summaryを追加専用で管理する境界。
 - AI Invocation Audit: 再分析・対話・Group展開の送信時点のRevision、summary、Source／派生物ハッシュ、Group展開結果、モデル、prompt schema、結果状態をローカルで固定記録する。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
@@ -120,13 +121,14 @@ Contextory Vault/
     └── contextory.sqlite3
 ```
 
-- Source Bundleは正規`sourceId`単位の永続的な記録である。新規のInput、Analysis、Output、Topic Sourceは正規Sourceモデルへ書き込む。
+- Source Bundleは正規`sourceId`単位の永続的な記録である。新規のInput、Analysis、Output、Topic Source、External Ticket Sourceは正規Sourceモデルへ書き込む。
 - 原本、文字起こし、プレビュー、動画キーフレームをSource Bundleへまとめる。
 - 外部サービスから取り込んだ原文とユーザー補足は、AI生成物および原本と分離する。
 - Source BundleをProject／Taskフォルダへ物理移動しない。複数Project／Taskとの関連はメタデータで表現する。
 - GroupはSource IDだけを参照し、同じSourceを複数Groupへ再利用できる。Groupへの追加は生成を起動しない。
 - Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
 - Topic Sourceは`kind: topic`、`type: topic_excerpt`の派生Sourceである。snapshot所有Source、原音所有Source、nullableな親Revision、`system`／`microphone`等の単一role別Evidence Span、不変snapshotと選択byte列のhash、時刻／byte半開区間を保存し、原本／Transcriptを複製せず原音Sourceの該当時刻を再生する。親更新でspanを自動追従させず、Topic／Task／Group／Revision／派生Source／公開監査から参照される親Sourceは削除しない。
+- External Ticket Sourceは`kind: input`、`type: external_ticket_snapshot`の不変Inputである。provider、providerが保証する不変instance ID（なければ正規化endpoint）、不変issue ID、必要時だけproject不変IDからremote keyを確定し、endpointと変更可能なissue／project keyは表示aliasとする。remote version、取得scope、snapshot hash、operation IDで更新系列を検証し、変更時だけ一意な系列tipを参照する新Sourceを作る。不変IDを検証できない手動Sourceは`unconfirmed`のまま独立保存する。Read Adapterは公開Adapterとinterface、Job、資格情報を分け、外部ticketを変更しない。
 - 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDを持つ。
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
 - Analysisの一覧表示用の具体的要約、Action、Source保護ロック、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
@@ -229,6 +231,7 @@ Contextory Vault/
 - Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
 - Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。
 - Task詳細から根拠Analysis、Source、親Taskへ逆引きできる。
+- タスク整理画面には将来「外部チケットを取り込む」を置き、URL／手動入力とAPI取得を選ぶ。保存前にidentity、取得範囲、重複候補、前回取得日時、差分を確認し、保存のみ・Group追加・Task作成・既存Task linkをユーザーが選ぶ。常駐メニューバーへ複雑な同期操作を追加しない。
 - Source詳細には将来「話題として切り出す」を置き、Transcriptまたはタイムラインの手動範囲選択でTopic Sourceを作成する。AI候補は採用、却下、範囲／タイトル修正、統合、再分割のレビュー対象であり、自動確定しない。
 - WBS表はGroupにリンクされたTaskの階層、予定日、状態、進捗、担当者、blockerを表示する。親子・依存の循環を禁止し、WBS番号は表示順から生成してTask IDの代わりにしない。簡易タイムラインとMarkdown／CSV／Excel出力は後続とする。
 - デイリーブリーフィング、返答待ち・期限超過、Decision Log、RAID、要件変更・影響分析、ステータスレポート、顧客フィードバック整理、優先順位付け、リリース準備確認は、既存Source／Group／Taskから導出する後続ビューとする。

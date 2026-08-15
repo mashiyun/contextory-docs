@@ -28,6 +28,7 @@
 - 用語辞書への登録は必ずユーザー確認を経て確定する。訂正内容からの自動登録は行わない。
 - Sourceは新規・既存を問わず既定で保護ロックし、ロック情報の欠落・不正・未知値も`locked`として扱う。正本はSource Manifestであり、SQLiteは再構築可能な索引に限定する。お気に入りは保護ロックとは別の将来の絞り込み属性とする。
 - 外部公開はユーザーの明示承認後だけに行う。公開先の資格情報はmacOS Keychainに限定し、アプリ内部でだけ参照を解決する。UserDefaults／plist、Local Vault、Markdown、ログ、Git、URL query、プロセス引数、環境変数、診断、クラッシュ情報、HTTPデバッグ出力へ保存・出力しない。
+- 外部チケットのRead Adapterはinterface、Job、監査、Keychain credentialを外部公開Adapterから分離し、Read専用の最小scopeだけを使う。外部ticketの変更、コメント、完了を行わず、pagination未完了などの部分API取得をSourceとして保存しない。不変remote IDを検証できない手動Sourceは`unconfirmed`として独立保存し、推測で統合しない。添付redirect先へ元credentialを転送しない。
 - 外部サービスの作成結果が不明な場合は、新規作成を自動再試行しない。作成済みremote IDが確認できる添付失敗は、同じremoteへの添付だけを再実行できる。
 
 バックグラウンドで無断取得したデータやユーザー操作を伴わないSourceは送信しない。処理失敗を隠さず、無断で再送せず、タスク整理画面から手動で再実行できることを要件とする。

@@ -6,11 +6,12 @@
 
 ## Source中心モデル
 
-Contextoryで保存する情報と成果物は、入力かAI生成かを問わず、同じ`Source`として扱う。Input、Analysis、Output、Topic SourceはUIや処理段階の呼称であり、永続モデルの別物ではない。
+Contextoryで保存する情報と成果物は、入力かAI生成かを問わず、同じ`Source`として扱う。Input、Analysis、Output、Topic Source、External Ticket SourceはUIや処理段階の呼称であり、永続モデルの別物ではない。
 
 - キャプチャ、録音、録画、PDF、手動入力は一次Sourceである。
 - AI Analysis、議事録、要件定義、返信案などの生成結果も派生Sourceである。
 - 会議、動画、長文の一部を固定根拠で切り出すTopic Sourceも派生Sourceである。詳細は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)を参照する。
+- Jira／Backlogチケットを不変snapshotとして保存するExternal Ticket SourceもInput Sourceである。詳細は[External Ticket Source要件](external-ticket-source.md)を参照する。
 - Source単体または複数Sourceを材料として、新しい派生Sourceを生成できる。
 - 派生Sourceをさらに別の生成へ再利用できる。
 - 生成時に使用した親Source IDを固定して記録し、元Sourceを上書きしない。

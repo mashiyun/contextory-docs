@@ -555,6 +555,8 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - SQLite更新に失敗してもSource Bundleを失わない。
 - 再索引時はSource IDと`schemaVersion`を使用する。
 - Claude実行前と削除前は`VaultMutationLock`内で、Addition画像Source、明示追加context Source、Revisionおよび追加専用AI invocation auditの`stagedInputRefs`が参照するSource／Revision／snapshotを走査し、所有Source ID、相対path、symlink不使用、staged／original SHA-256を検証する。走査不能、欠損、Bundle外path、hash不一致ではfail-closedとし、Analysis／Revision削除時も参照先をcascade deleteしない。
+- 移行済みAnalysis Sourceのlegacy cleanupだけは、canonical Manifestが`schemaVersion: 3`かつ`kind: analysis`で、要求・canonical Bundle directory・Manifestの`sourceId`、canonical path／Manifest／hash、legacy `analysisId`対応が検証済みであり、`schemaVersion: 2`のlegacy AnalysisManifestを持つ所有下の子Bundleを承認済みlegacy rootの再帰走査からちょうど1件だけ解決できる場合に限る。legacy root自身、root直下の単独`analysis.json`、親directory、非Bundle directoryを候補にせず、canonical側の不一致、またはlegacy Bundle directory名／legacy AnalysisManifestの`sourceIds`以外の不一致はfail-closedとする。通常削除の厳格な一致検証は緩めない。
+- このcleanupは`VaultMutationLock`内でprepare、一時ロック解除、commit直前にcanonical／legacyのidentity、schema、所有path、Manifest、hash、全参照を再検証し、2回のユーザー確認（一時解除、ゴミ箱移動）を要求する。canonical／legacy BundleのTrash移動は永続prepare／commit記録を持つ回復可能な論理transactionとし、片方だけの移動を成功としない。中断・失敗時は起動時に移動済みBundleを元の所有pathへ復元して`locked`へ戻し、復元不能・状態不明はfail-closedで隔離して自動削除・cascade deleteを行わない。
 - Project／Task／Group関連を変更しても原本ファイルを移動・複製しない。
 - 関係の更新時は、Task–Source／Task–Groupなら対象`task.json`だけ、Group–Sourceなら対象`group.json`だけを更新する。Source Manifestへ逆方向のID配列を書き戻さない。
 - Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。

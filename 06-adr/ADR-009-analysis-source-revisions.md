@@ -18,6 +18,8 @@ ADR-006はAnalysisを追加専用で保存する方針を定めたが、Context�
 - 新規のInput、Analysis、Outputは正規Source Bundleとして`sources/`配下へ書き込む。既存`analyses/`と`contexts/`は読み取り互換専用とし、新規書き込み先にしない。
 - legacy `analysisId`から正規`sourceId`への対応を永続保存する。移行時は旧Bundleを上書きせず、既存summaryをRevision 1の不変snapshotとして正規Source側へ保存する。
 - 新規書き込みへの切替は、全legacy Analysisの対応作成、Revision 1の`summaryPath`とSHA-256検証、Bundle走査でのSQLite再構築を確認した後に行う。確認不能なlegacy Analysisは読み取り互換に留め、手動レビュー対象とする。
+- 移行済みAnalysis Sourceのlegacy cleanupでは、`schemaVersion: 3`のcanonical `kind: analysis`を通常どおり厳格に検証したうえで、`schemaVersion: 2`の対応するlegacy Analysis Bundleをちょうど1件だけ削除対象に含められる。許容するlegacy互換不一致はBundle directory名およびlegacy AnalysisManifestの`sourceIds`だけとし、canonical側のpath／Manifest／ID不一致、ID対応不全、参照・hash・schema不全、0件または複数件のlegacy候補ではfail-closedとする。legacy rootは再帰探索の起点にすぎず、root自身、root直下の単独Manifest、親directory、非Bundle directoryを削除候補にしない。
+- cleanupは`VaultMutationLock`内でprepare、一時ロック解除、commit直前に再検証し、一時解除確認とゴミ箱移動確認の2回を要求する。canonical／legacy BundleのTrash移動は回復可能な論理transactionとし、片方だけの移動を成功とせず、失敗・中断時は復元して`locked`へ収束させ、復元不能・状態不明はfail-closedで隔離する。これは通常削除の厳格性を緩めず、参照先のcascade deleteを許可しない。
 - 同じAnalysis Sourceへのテキスト、画像、URL追加と再分析は、新しいAnalysis Sourceではなく不変のAnalysis Revisionを追加する。
 - Revisionは連番、日時、理由、追加情報、追加画像Source ID、ユーザー指示、使用Provider／モデル、確認状態、実際に使用したSource ID、直前との差分、summary本文の不変snapshot、`summaryPath`、SHA-256を構造化して保存する。ハッシュだけのRevisionは認めない。
 - Revisionへ追加する画像は独立した不変Sourceとして保存する。音声、動画、PDFはRevisionへ直接追加せず、新規Sourceとして取り込んで前処理・Analysisを行う。
@@ -43,6 +45,7 @@ ADR-006はAnalysisを追加専用で保存する方針を定めたが、Context�
 - 最新summaryの投影とRevision正本の整合性検査が必要になる。
 - 「同一分析の更新」と「新しい派生分析」の選択基準をUIで明示する必要がある。
 - legacy `analysisId`と`sourceId`の対応不全、Revision snapshot不全は新規書き込みの切替を阻害するため、検出・手動レビューが必要になる。
+- legacy cleanupには、2回の確認、複数回の再検証、Trash transactionの復旧記録が必要であり、互換性の不一致を通常削除や他種別Sourceへ一般化できない。
 
 ## Supersession and amendment
 

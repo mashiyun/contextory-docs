@@ -197,12 +197,27 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
 - 既存Sourceへの導入時も既定を保護ロックとし、Manifestへのbackfill完了まではロック解除済みと推測しない。
 
+### legacy互換不一致だけのAnalysis Source cleanup例外
+
+通常のSource削除は、Bundle directory名とManifestのID・親IDを含む既存の厳格な一致検証を維持する。ただし、移行済みAnalysis Sourceを削除するためだけに、legacy Bundleのdirectory名および／またはlegacy AnalysisManifestの`sourceIds`の不一致を許容するcleanup例外を設ける。この例外は欠損・不正・未知の情報を補う仕組みではなく、次の条件をすべて満たす場合だけに限定する。
+
+- 削除対象は`kind: analysis`、`schemaVersion: 3`の移行済みcanonical Analysis Sourceであり、解決済みlegacy Manifestの`schemaVersion`は厳密に`2`である。Input、Output、Topic、External Ticket、未移行Analysis、またはcanonical Analysis Sourceだけの削除には適用しない。
+- canonical `sourceId`は削除要求、canonical Bundle directory名、canonical Manifestで完全一致し、canonical Bundle path、Manifest、必要なhashを通常削除と同じ規則で検証できる。canonical側のpathまたはManifest不一致をこの例外で許容しない。
+- canonical側に保存したlegacy `analysisId`対応と、legacy Manifestの`analysisId`を検証し、対応するlegacy Analysis Bundleをちょうど1件だけ解決できる。0件または複数件、ID不正、対応不明はfail-closedで中止する。
+- legacy Bundleの探索は承認済みlegacy root配下を再帰的に行ってよいが、解決結果はroot自身ではなく、そのrootに所有されるBundle境界の子directoryでなければならない。root直下の`analysis.json`、任意の親directory、非Bundle directoryを一致候補として採用せず、rootまたは複数Bundleをゴミ箱へ移動しない。
+- 許容する不一致は、解決済みlegacy Bundleのdirectory名とlegacy `analysisId`、およびlegacy AnalysisManifestの`sourceIds`だけである。それ以外のidentity、schema、所有境界、参照、path、hashの検証失敗は通常どおり削除を中止する。
+- `VaultMutationLock`内で参照整合性をfail-closedで走査する。走査不能、欠損、未知schema、参照中、参照先の不整合ではcleanupを実行せず、canonical／legacyのいずれの参照先もcascade deleteしない。
+- ユーザー確認は2回必須とする。prepareで候補と検証結果を固定した後の一時ロック解除確認と、解除後に対象（canonical／legacy）、参照、identity、path、hashを再検証してから行うゴミ箱移動確認である。commit直前にも同じ検証を再実行し、いずれかが変化または失敗したら再ロックして中止する。
+- canonical Bundleと解決済みlegacy Bundleのゴミ箱移動は、永続化したprepare／commit記録を使う1つの回復可能な論理transactionとして扱う。片方だけの移動を成功とせず、移動失敗・中断・異常終了では起動時復旧で移動済みBundleを元の所有pathへ戻して`locked`へ収束させる。復元不能または状態不明ならfail-closedで隔離し、ユーザーの手動レビューまで再試行・削除を行わない。
+
 ### 受入条件
 
 - ロック中のSourceは削除操作を実行できない。
 - 削除にはロック解除確認と削除確認の両方が必要である。
 - 参照中のSourceはゴミ箱へ移動せず、影響する参照を確認できる。
 - backfill失敗、削除キャンセル、削除失敗、異常終了後に、Sourceが削除可能な解除状態として残らない。
+- legacy cleanupは、`schemaVersion: 3`の移行済みcanonical Analysis Sourceと、`schemaVersion: 2`のちょうど1件の所有下legacy Bundleだけを対象にし、legacy側のdirectory名または`sourceIds`以外の不一致では実行されない。
+- legacy root、非Bundle directory、0件または複数件のlegacy候補はゴミ箱へ移動せず、canonical／legacyの片方だけが移動した場合は起動時復旧で削除前のロック状態へ戻る。
 
 ## Task
 

@@ -44,6 +44,14 @@ App実装、personal-vault本体、他リポジトリは、明示的な依頼が
 - commit/pushは明示的に依頼された場合のみ行ってください。
 - force push、reset、rebase、履歴書き換えを行わないでください。
 
+## 自動開発サイクル
+
+- ユーザーが`autonomous-development-cycle`または`$autonomous-development-cycle`を明示した場合は、共通Skillの手順に従い、専門エージェントを順次利用してください。
+- 同一worktreeを複数の書き込みエージェントで同時編集しないでください。独立レビューはread-onlyで行い、修正はDocsエージェントへ戻してください。
+- 現在の依頼に通常commit／pushまで明記されている場合だけ、独立レビューgreenと文書検証成功後に実施してください。
+- tag、GitHub Release、外部公開、App実装、実利用Vaultの操作は、自動開発サイクルとは別に明示された場合だけ実施してください。
+- 重大な仕様の曖昧さ、破壊的変更、権限不足、既存差分との競合がある場合は停止して報告してください。
+
 ## 検証
 
 ```bash

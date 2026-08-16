@@ -2,7 +2,7 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤は実装済み。以下の一覧簡素化、解析完了判定の修正、保護ロック、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
+正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、未参照Source管理、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
 
 ## Source中心モデル
 
@@ -63,6 +63,7 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 - Analysis表記、分類、処理状態、hash、Source ID、Revision番号、モデル名は通常の一覧へ表示しない。
 - 詳細画面と診断画面では、Analysis Source ID、Revision、分類、処理状態、hash、使用モデル、生成日時を確認できる。
 - 具体的な要約はAnalysis Sourceの表示メタデータとして保存し、本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態、ユーザー修正の有無を持つ。
+- 保存済みの表示要約は変更・検証せず、一覧表示だけを短縮する。表示には実装言語の`Character`単位を一貫して使い、20 Characterを超える値は先頭19 CharacterとU+2026（`…`）を表示する。20 Character以下の値はそのまま表示し、locale、フォント、UTF-16 code unit、UTF-8 byte数で長さを判定しない。
 - ユーザーはAI提案の要約を確認、修正、却下できる。ユーザー修正後の表示要約を、後続のAI再分析で黙って上書きしない。
 - 分類は検索・絞り込みに使う属性であり、一覧の表示項目にはしない。
 - 保存する時刻はUTCのISO 8601を正本とし、表示時にだけAsia/Tokyoへ変換する。既定の表示形式は分単位の`2026/08/14 10:30`とする。
@@ -91,6 +92,7 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 - 新フィールドへの投影は、次回の正規Revision書き込み時にappend-onlyで行う。
 - schema version、旧version読込、新version書込、SQLite再索引のいずれでも同じeffective summary規則を使う。
 - 確認状態とユーザー修正履歴はフィールド移行後も保持し、AIが上書きしない。
+- legacy値を含む全てのeffective summaryは、読込時に保存値を変更せず同じ表示短縮規則を適用する。20 Character超過時だけ先頭19 Characterと`…`を表示し、20 Character以下はそのまま表示する。これは表示変換だけであり、legacy値を新規フィールドへbackfillしない。
 
 ### 受入条件
 
@@ -104,6 +106,8 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 - legacy `presentationTitle`だけを持つ既存Analysisでも、一覧が同じ優先順位でeffective summaryを表示し、読込によってManifestが更新されない。
 - 新旧フィールドが併存する場合も、ユーザー確認済みの値が優先され、legacy値が削除されない。
 - 任意の表示要約について、生成根拠、生成モデル、確認状態、ユーザー修正の有無を確認できる。
+- 保存済みの要約は長さにかかわらず変更・保存拒否されず、20 Character超過時だけ一覧で先頭19 Characterと`…`が表示される。
+- legacy `presentationTitle`を含む全ての値に同じ表示短縮規則を適用し、読込時にManifestを更新しない。
 
 ## 解析完了判定と状態表示
 
@@ -219,6 +223,21 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - legacy cleanupは、`schemaVersion: 3`の移行済みcanonical Analysis Sourceと、`schemaVersion: 2`のちょうど1件の所有下legacy Bundleだけを対象にし、legacy側のdirectory名または`sourceIds`以外の不一致では実行されない。
 - legacy root、非Bundle directory、0件または複数件のlegacy候補はゴミ箱へ移動せず、canonical／legacyの片方だけが移動した場合は起動時復旧で削除前のロック状態へ戻る。
 
+## 未参照Source一覧と複数選択破棄
+
+タスク整理画面は、削除候補を見つけるための「未参照Source」一覧を提供する。未参照は、現行Appが読めるSource、legacy Analysis／Context、Group、Taskの参照fieldに当該canonical `sourceId`がないことだけを指す。これは現在読める参照に基づく便宜的な一覧であり、Vault全体の完全な参照グラフを保証しない。読取エラーや未対応形式では、一覧を表示できない通常のエラーを示す。
+
+- 一覧は現行Appが読める参照から見て未参照のSourceだけを候補にする。候補のSource種別、表示要約またはfallback、JST日時、容量を表示し、削除の可否は既存のSource削除規則に従う。
+- ユーザーは候補を明示選択する。空の選択では開始せず、一覧の再読込やアプリ再起動で削除を予約・自動実行しない。
+- 複数選択削除では、対象件数と「macOSのゴミ箱へ移動、直ちに完全削除しない」を示す明示確認を求める。確認後、選択したSourceを順に既存のSource単位のゴミ箱移動として処理する。batch用のcandidate snapshot永続化、全件atomic transaction、特別な全件再検証、batch rollbackは行わない。
+- 各Sourceの既存削除に失敗した場合は通常のエラーを表示し、他の選択Sourceの処理結果とともに一覧を更新する。選択外のSourceを変更せず、cascade deleteを行わない。
+
+### 受入条件
+
+- 現行Appが読める参照から見て参照中のSourceは未参照一覧へ出ない。
+- 複数選択したSourceだけに明示確認後の順次ゴミ箱移動を実行し、各Sourceの成功・失敗を表示する。選択外のBundleを移動・更新しない。
+- legacy Analysis cleanupの例外は未参照一覧・一括削除に適用されず、同cleanupだけの専用操作に限定される。
+
 ## Task
 
 Taskは具体的な対応、期限、状態、待ち先、完了条件を管理する。
@@ -231,6 +250,7 @@ Taskは具体的な対応、期限、状態、待ち先、完了条件を管理�
 - Task内のSourceには、根拠、文脈、入力、下書き、確定成果物などの役割を設定できる設計とする。
 - Task–Source／Task–Group関係の正本はTask Bundleの`task.json`である。`sourceLinks`と`groupLinks`へ相手ID、role、追加日時を保存する。
 - Source Manifestの`taskIds`は既存データの読み取り用cacheであり、新規更新しない。双方向のBundle更新を行わず、SQLiteは索引として再構築する。
+- MVPの「削除」はhard deleteではなくarchiveである。Task／Group Bundleと既存のlink・履歴を保持し、関連SourceやGroupを移動・unlink・削除しない。
 - Taskの詳細な手動管理、コメント、返答待ち、blocker、WBSは[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に従う。
 
 ## 画面内URLの出典化

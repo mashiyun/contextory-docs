@@ -159,7 +159,8 @@ Contextory Vault/
 - 誤操作に備え、直近の取得を破棄できるようにする。
 - メニューバーに確定済みSource数とLocal Vault使用量を表示する。
 - Sourceは既定で保護ロックする。削除は参照整合性確認、一時ロック解除確認、削除確認を通過してからSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。参照検出、キャンセル、失敗、異常終了、ゴミ箱移動成功時には一時解除を自動再ロックする。恒久的な手動ロック解除とは別に扱う。
-- タスク整理画面ではAnalysis単体、未参照Source単体、Analysisと未参照Source一式を削除候補として表示できる。Task、Group、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、派生Source、外部公開記録から参照中の場合は削除を禁止する。参照走査不能、欠損、hash不一致でもfail-closedとし、cascade deleteしない。
+- タスク整理画面では、現行Appが読める参照から見て未参照のSourceを削除候補として表示できる。読取エラーや未対応形式では通常のエラーを表示し、Vault全体の完全な参照グラフを保証しない。候補は複数選択でき、対象件数を示す明示確認後に既存のSource単位Trash移動を順に実行して、各Sourceの結果を表示する。batchのsnapshot、atomicity、全件再検証、rollbackは行わず、cascade deleteをしない。
+- Task／Groupの削除導線はhard deleteではなくarchiveである。Bundle、link、コメント・blocker・変更履歴を保持し、BundleをTrashへ移さず、参照元の自動unlinkやcascade deleteを行わない。
 - 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。
 - 保存完了通知の権限は自動要求せず、ユーザーの明示操作で有効化する。
 - 常駐メニューにはInput操作と処理状態だけを表示する。
@@ -229,7 +230,7 @@ Contextory Vault/
 - 最初の縦切りではAnalysis一覧・Markdown詳細・根拠Source表示・Task作成・Task来歴・再試行待ちの手動再実行を提供する。
 - Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。Analysis表記、分類、状態、hash、Source IDは一覧へ出さず、詳細画面と診断画面で確認する。要約未生成時はSource種別とJST日時で暫定表示する。要約の根拠・確認状態を保存し、ユーザー確定の要約をAIが上書きしない。
 - 一覧の日時は既定で分単位とし、表示要約とJST分が一致する集合だけを秒、なお一致する場合だけ小数秒まで拡張する。比較と拡張判定はlocale非依存で決定的に行い、行の内部識別に使うSource IDは表示しない。
-- 一覧の表示要約は、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、種別と日時のfallbackの順に解決する。読込時にlegacy値の削除やManifestのbackfillを行わない。
+- 一覧の表示要約は、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、種別と日時のfallbackの順に解決する。保存値は読込時に削除・backfillせず、表示時だけ実装言語の`Character`単位で20 Characterを超える値を19 Character＋`…`へ短縮する。
 - Analysis詳細では、role別の生Transcript、統合Transcript、辞書補正後Transcript、現在の訂正版、訂正履歴、過去Summaryを確認できる。訂正版からSummaryとActionsを再生成し、過去Revisionを保持する。
 - Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
 - Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。

@@ -26,7 +26,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 撮り溜めたコンテンツの一覧管理・詳細レビューUIは、常駐型取得エージェントとは別に設計する。
 - 常駐メニューはInput専用、将来のタスク整理画面は確認・補足・関連付け・再解析専用とし、相互の操作を混在させない。
 - 将来のExcel、PowerPoint、Jira、Backlog、Slack出力は確認済み文脈から生成する。
-- Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面で確認する。保存時刻はUTCのISO 8601を正本とし、表示時だけAsia/Tokyoへ変換する（表示例`2026/08/14 10:30`、将来実装）。
+- Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。要約は保存値を変えず、20 Character超過時だけ表示を19 Characterと`…`へ短縮する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面で確認する。保存時刻はUTCのISO 8601を正本とし、表示時だけAsia/Tokyoへ変換する（表示例`2026/08/14 10:30`）。
 - 解析の成否はcanonical Analysis SourceとRevisionの不変Summary snapshotの保存・hash検証で判定する。`operationId`はJob作成時に確定して一意制約付きで索引化し、Analysis保存・Summary保存・親Manifest更新の所有者を1つに集約する。保存後の状態同期失敗は`completion_sync_pending`として起動時復旧の対象とし、試行回数を実行前に永続化して最大3回後は`completion_sync_failed`で手動対応へ切り替える。部分保存・破損は`analysis_integrity_failed`として自動再解析しない（将来実装）。
 - Whisperの生Transcriptはrole別に不変の原本として保持し、ユーザー訂正は不変の訂正Sourceとして追加する。訂正版Transcriptから要約とActionsを再生成し、過去Revisionを保持する。同一操作の収束は`operationId`、監査は`requestFingerprint`で分けて扱う（将来実装）。
 - 共通辞書とGroup／案件別辞書をローカルに保持し、次回録音の用語ヒントと文字起こし後の決定的な表記補正へ使う。同時適用は共通辞書と明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない（将来実装）。
@@ -77,6 +77,6 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）は実装済みです。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Analysis一覧・Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）、約10〜20 CharacterのAnalysis一覧要約、未参照Source一覧と複数選択破棄、Task／Group archiveは実装済みです。この開発サイクルの最終全検証は別途実施します。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。
 
-実利用のフィードバックから、Analysis一覧のJST・簡素化、解析成功後の状態競合修正、Transcript訂正とRevision再生成、共通／Group辞書、決定的補正、PoC後のWhisperヒントの順で実装します。いずれも未実装であり、実装順は[開発フェーズ](04-roadmap/development-phases.md)に記載します。
+実利用のフィードバックから、Analysis一覧のJST・簡素化は実装済みです。解析成功後の状態競合修正、Transcript訂正とRevision再生成、共通／Group辞書、決定的補正、PoC後のWhisperヒントは未実装であり、実装順は[開発フェーズ](04-roadmap/development-phases.md)に記載します。

@@ -23,7 +23,7 @@
 
 実利用で確認した不具合と、音声文字起こしの訂正・用語辞書は、次の順で実装する。前段の永続化・検証条件を満たすまで後続を開始しない。
 
-1. Analysis一覧のJST日時表示と簡素化。一覧を具体的な要約とJST日時だけにし、技術情報を詳細・診断画面へ移す。保存時刻はUTCのISO 8601のままとする。同一要約・同一分の場合だけ秒、なお一致する場合だけ小数秒へ拡張する。`presentationSummary`と legacy `presentationTitle`のeffective summary解決規則を読込・書込・再索引で統一し、version 1／2／3 readerをwriterより先に提供する。
+1. Analysis一覧のJST日時表示と簡素化。一覧を具体的な約10〜20 Characterの要約とJST日時だけにし、技術情報を詳細・診断画面へ移す。保存時刻はUTCのISO 8601のままとする。同一要約・同一分の場合だけ秒、なお一致する場合だけ小数秒へ拡張する。`presentationSummary`とlegacy `presentationTitle`のeffective summary解決規則を読込・書込・再索引で統一し、保存値を変更せず、20 Character超過時だけ表示を19 Character＋`…`へ短縮する。version 1／2／3 readerをwriterより先に提供する。
 2. 解析成功後の状態競合修正。`operationId`をJob作成時にUUIDで確定して実行前に永続化し、Analysis保存・Summary保存・親Manifest更新を`AnalysisStore`へ集約する。SQLite migration、Bundle検証、legacy nullを除く部分一意索引の順で導入し、検証後だけ新規writerを有効化する。保存前失敗、保存後の状態同期失敗、保存物の整合性失敗を分離する。`completion_sync_pending`は起動時復旧対象として試行開始前に回数を永続化し、5秒・30秒・5分の最大3回で再同期、3回失敗後は`completion_sync_failed`とする。部分保存・破損は`analysis_integrity_failed`で自動処理を止める。
 3. Transcript訂正とRevision再生成。role別生Transcriptを`rawTranscriptRefs`として不変保持し、確定済みの`mergeAlgorithmVersion: 1`で統合する。訂正位置は固定snapshot上のUTF-8 byte半開区間とし、`transcriptTransformSteps`へ変換順序と入出力hashを保存する。訂正を不変Sourceとして追加し、訂正版snapshotを持つRevisionからSummaryとActionsを再生成する。`operationId`で収束させ、`requestFingerprint`を監査用に保存する。
 4. 共通／Group辞書。ユーザー確認を必須とする辞書登録、追加専用の辞書Revision、`dictionaryRevisionRefs`によるsnapshot固定、削除後も過去Analysisを再現できる保存を実装する。同時適用は共通辞書＋明示選択した1つのGroup辞書までとする。
@@ -31,6 +31,15 @@
 6. Whisper用語ヒント。PoCで方式、語数上限、改善効果を確認してから有効化する。未検証のヒントを自動適用せず、段階1〜5の実装をこのPoC待ちにしない。
 
 詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)、[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を参照する。
+
+## 次のLibrary安全管理実装順
+
+以下は実装済みである。この開発サイクルの最終全検証は別途実施する。実利用Vaultは対象にしない。
+
+1. Analysis一覧の要約を、保存値を変更せず表示時だけ約10〜20 Characterへ短縮した。20 Character超過時は19 Character＋`…`とし、legacy値にも同じ規則を適用する。
+2. 現行Appが読める参照だけを使う未参照Source一覧を追加した。読取エラーや未対応形式では通常のエラーを表示し、完全な参照グラフは保証しない。
+3. TaskとGroupの削除導線をarchiveへ統一した。Bundle、link、履歴を保持し、状態だけを保存する。
+4. 未参照Sourceの複数選択Trash移動を実装した。対象を明示確認した後、既存のSource単位ゴミ箱移動を順に実行し、各Sourceの結果を表示する。batchのsnapshot、atomicity、全件再検証、rollbackは追加しない。
 
 ## 次期Topic Source・Task・PM実装順
 

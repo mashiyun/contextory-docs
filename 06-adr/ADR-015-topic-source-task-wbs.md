@@ -19,7 +19,7 @@
 - TaskはSourceと別のTask Bundleを個人作業管理の正本とする。Task–Source／Task–GroupはADR-011どおり`task.json`の`sourceLinks`／`groupLinks`だけを正本とし、Source Manifestの逆方向配列とSQLiteは正本にしない。
 - Taskには手動編集可能な作業属性、`parentTaskId`、`displayOrder`、`dependencyTaskIds`、不変なコメント／blocker recordと追加専用event、追加専用変更eventを保存する。eventには一意なID、単調増加sequence、`operationId`を持たせる。Task現在値とeventは`VaultMutationLock`内で同じ`task.json`へ1回のatomic replaceで書き、SQLiteは再構築可能な投影とする。返答待ちは実作業状態と別に表現し、ユーザー確定内容をAIが上書きしない。
 - MVPのWBSはGroupにリンクされたTaskから投影する。WBS専用データを作らず、番号は階層と表示順から生成する。親子と依存はそれぞれ追加後の全graphをロック内で検証し、欠損、重複、自己参照、推移的循環を拒否する。Group化はTask／WBSを自動作成しない。
-- MVPのTask削除はarchiveとし、参照とeventを保持する。参照中Groupのarchiveおよび参照中Sourceの削除をロック内の直前走査で拒否し、cascade deleteは行わない。
+- MVPのTask／Group削除はhard deleteではなくarchiveとする。Task／Group Bundle、既存link、コメント、blocker、履歴を保持し、archive状態をそれぞれのBundleへ保存する。BundleのTrash移動、参照元の自動unlink、Source移動、cascade deleteは行わない。
 - PM支援機能はSource／Group／Taskから導出するビューまたは再生成可能なcacheとし、Decision Log、RAID等の重複正本を持たない。ユーザー確定操作はSource作成またはTask変更として正本へ記録する。
 - 既存Taskはversion 1／2を読み、新規Task writerは`schemaVersion: 3`とする。version 3 reader、SQLiteのnullable列・新規表、Bundle検証をwriterより先に導入し、一括backfillを行わず未知fieldをround-tripで保持する。
 
@@ -33,7 +33,7 @@
 
 ### Negative
 
-- Evidence Spanのsnapshot検証、来歴DAG、Task親子／依存の循環検査、参照付き削除判定が必要になる。
+- Evidence Spanのsnapshot検証、来歴DAG、Task親子／依存の循環検査が必要になる。
 - 複数Groupに属するTaskのWBS表示、blockerの直接原因と根本原因の投影、外部同期はUI・索引・検証を追加で設計する必要がある。
 - PM支援ビューは正本を持たないため、表示のフィルタ、集計規則、更新タイミングを個別に定義する必要がある。
 

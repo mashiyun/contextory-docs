@@ -90,8 +90,7 @@ MVPではWBS専用Bundleや重複したWBS正本を作らない。Groupに紐づ
 
 ### archive・削除参照
 
-- MVPのTask削除はhard deleteではなくarchiveとし、コメント、blocker、変更eventを保持する。親子／依存Task、proposal、派生Output、公開監査から参照中のTaskはhard deleteしない。
-- Groupのarchiveは、`groupLinks`を持つTask、Group辞書、Groupを参照するAnalysis／Topic／Output／公開監査が存在する間は拒否する。Source削除とGroup archiveは`VaultMutationLock`内で直前に全正本を走査し、欠損、不明schema、破損、走査不能があればfail-closedとする。Task archiveは参照と履歴を有効なまま保持する非破壊操作とする。
+- MVPのTask／Group削除はhard deleteではなくarchiveとし、Bundle、link、コメント、blocker、変更eventを保持する。archiveは各Bundleへ状態を保存する非破壊操作であり、参照元の自動unlink、Source移動、cascade deleteを行わない。
 - UI上のunlinkは参照元正本だけを更新する別操作であり、参照先Bundleの削除と同一操作にしない。複数Bundleをまたぐ自動cascade deleteは行わない。
 
 ## PM支援ビュー

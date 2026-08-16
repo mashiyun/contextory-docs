@@ -32,6 +32,8 @@ Task Bundleの`task.json`には、Task ID、タイトル、説明、作業状態
 
 Taskの実作業状態と`coordinationState`（`none`／`waiting_response`／`blocked`）は別に保存する。コメントとblockerは不変な基底record、編集／削除／解消／再開は追加専用event、Task変更は追加専用eventとして同じ`task.json`へ保存する。各record／eventは一意なID、Task内で単調増加する`sequence`、`operationId`を持つ。現在値の変更とevent追加は`VaultMutationLock`内で1回のatomic replaceとして確定し、過去本文や解消済みblockerを消さない。ユーザー確定値とAI提案は別の確認状態で保存し、AIが確定値を上書きしない。将来の外部同期情報はremote ID、同期状態、最終同期日時、照合結果をTask側に保存する。
 
+Taskのarchiveは`task.json`へ保存する状態とし、Task Bundle、`sourceLinks`、`groupLinks`、コメント、blocker、既存履歴を消さない。Source／Groupのlinkを自動変更しない。
+
 ### Source
 
 判断の根拠となる不変の原本または記録。Capture、Audio Recording、Screen Recording、Transcript、Email、Analysis、Outputなどを含む。取得、保存、文字起こし、AI処理、レビューの状態を持つ。派生Sourceは親Sourceを上書きせず、`parentSourceIds`と生成来歴を持つ。
@@ -125,7 +127,7 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 
 ### Group
 
-関連するSourceを案件、テーマ、顧客、機能などの文脈で集める入れ物。Groupは`group.json`の`sourceLinks`で複数Sourceを参照し、同じSourceは複数Groupへ所属できる。Groupへの追加は統合AnalysisやOutputの生成を起動しない。Groupから派生Sourceを生成するときは、Group IDだけでなく、その実行で使用した個別Source IDを来歴へ固定する。
+関連するSourceを案件、テーマ、顧客、機能などの文脈で集める入れ物。Groupは`group.json`の`sourceLinks`で複数Sourceを参照し、同じSourceは複数Groupへ所属できる。Groupへの追加は統合AnalysisやOutputの生成を起動しない。Groupから派生Sourceを生成するときは、Group IDだけでなく、その実行で使用した個別Source IDを来歴へ固定する。Group archiveは`group.json`へ保存する状態とし、Group Bundleと`sourceLinks`を保持する。参照元Bundleのunlink、Source移動、cascade deleteは行わない。
 
 ```json
 {
@@ -208,9 +210,9 @@ AIとの対話は構造化した追加専用履歴を正本とする。summary�
 
 新規のcanonical Analysis Sourceは`generation.operationId`を必須項目として持つ。値は対応するProcessing Jobで確定した`operationId`と同一とする。
 
-Analysis一覧表示用に、Analysis Sourceは`presentationSummary`を持てる。これは分類とは別の、内容が分かる短い具体的な要約であり、本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態、ユーザー修正の有無を保存する。ユーザー修正した要約は、明示的な再生成操作なしにAIが上書きしない。
+Analysis一覧表示用に、Analysis Sourceは`presentationSummary`を持てる。これは分類とは別の、内容が分かる短い具体的な要約であり、本文、生成元Revision ID、根拠Source ID、生成Provider／モデル、生成日時、確認状態、ユーザー修正の有無を保存する。ユーザー修正した要約は、明示的な再生成操作なしにAIが上書きしない。保存値は長さにかかわらず保持し、一覧表示だけは実装言語の`Character`単位で20 Characterを超える値を先頭19 Character＋U+2026へ短縮する。
 
-新規書き込みは`presentationSummary`だけを使う。legacyの`presentationTitle`は読み取り互換フィールドとして残し、新規に書き込まない。読込時のeffective summaryは、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、Source種別とJST日時によるfallbackの順に解決する。両フィールドが存在してもlegacy値を削除せず、読込時のbackfillや既存Manifestの一括更新も行わない。新フィールドへの投影は次回の正規Revision書き込み時にappend-onlyで行う。schema version、旧version読込、新version書込、SQLite再索引のいずれでも同じ解決規則を使う。確認状態とユーザー修正履歴はフィールド移行後も保持する。
+新規書き込みは`presentationSummary`だけを使う。legacyの`presentationTitle`は読み取り互換フィールドとして残し、新規に書き込まない。読込時のeffective summaryは、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、Source種別とJST日時によるfallbackの順に解決する。両フィールドが存在してもlegacy値を削除せず、読込時のbackfillや既存Manifestの一括更新も行わない。新フィールドへの投影は次回の正規Revision書き込み時にappend-onlyで行う。schema version、旧version読込、新version書込、SQLite再索引のいずれでも同じ解決規則を使う。確認状態とユーザー修正履歴はフィールド移行後も保持する。legacyを含む全effective summaryは表示時だけ同じ20 Character短縮規則を適用する。
 
 一覧に表示するのは、この具体的な要約とJSTへ変換した日時だけとする。Analysis表記、分類、処理状態、hash、Source ID、Revision番号、モデル名は一覧へ表示せず、詳細画面と診断画面で確認する。日時は既定で分単位とし、表示要約とJST分が一致する項目が複数ある場合だけ、その一致集合を秒まで、なお一致する場合だけ小数秒まで拡張する。比較と拡張判定はlocale非依存で決定的に行い、要約はUnicode正規化後のコードポイント列、日時はUTC正本の値で比較する。行の内部識別にはSource IDを使うが表示しない。要約が未生成の場合は、Source種別とJST日時による暫定表示を`proposed`として扱う。この暫定表示はユーザー確定の要約ではない。
 
@@ -562,7 +564,7 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。
 - External Ticket Source確定時は`VaultMutationLock`内でschema version、import operation ID／fingerprint、canonical remote key、取得scope／coverage、snapshot primary originalとhash、remote version、一意な親snapshot系列、Source IDを再検証する。同一snapshot identityの重複、non-nullの同じversionに対する異なるhash、系列分岐・複数tip・循環、identity不整合、部分API取得、資格情報を含むpath／fingerprintは拒否する。外部ticket snapshotまたは選択添付を参照するSourceは削除不可とする。
 - Taskの親子・依存を追加・変更する場合は`VaultMutationLock`内で追加後の各全graphを独立に検証し、参照先欠損、重複、自己参照、推移的循環を拒否する。コメント・blockerは基底recordを変更せず追加eventで編集、削除、解消、再開を表し、Task現在値とeventを同じatomic replaceで保存する。
-- MVPのTask削除はarchiveとし、Task参照と履歴を有効なまま保持する。`groupLinks`を持つTask、Group辞書、Analysis／Topic／Output／公開監査から参照されるGroupのarchiveを拒否する。Source削除とGroup archiveの参照走査はロック内で書込み直前に行い、破損、不明schema、走査不能時はfail-closedとする。cascade deleteは行わない。
+- MVPのTask／Group削除はarchiveとし、Bundle、link、履歴を有効なまま保持する。archiveは状態の保存だけであり、参照元の自動unlink、Source移動、cascade deleteを行わない。
 - 既存`analyses/`を走査してlegacy `analysisId`と正規`sourceId`の対応を作り、旧Bundleは読み取り可能なまま残す。対応、Revision 1の不変snapshot、Bundle走査によるSQLite再構築を確認するまで新規書き込みを正規モデルへ切り替えない。
 
 列型・索引名を含む詳細なSQLite DDLは実装前に確定する。Source Manifest version 4とExternal Ticket record version 1の正本境界、保存方式の基本判断は本節、[ADR-016](../06-adr/ADR-016-external-ticket-source.md)、[ADR-001](../06-adr/ADR-001-local-vault-storage.md)に従う。

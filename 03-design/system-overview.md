@@ -39,7 +39,7 @@ Capture / Audio Recording / Screen Recording
 - AI Invocation Audit: 初回解析を含む各Revisionの`stagedInputRefs`へ送信時点の入力所有Source、Revision、`contentRole`、`inputType`、元path、staging論理path、staged bytesと原ファイルのhash、MIME `contentType`、transformation／versionを固定し、Group展開結果、モデル、prompt schema、結果状態と結び付ける。Revisionを作らないAI対話／Group展開にも同じ配列を追加専用のauditとして残し、一時stagingは正本にしない。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
-- Source Protection: Source Manifestを正本として既定で保護ロックし、Addition画像Source、明示追加context Source、`stagedInputRefs`を含む参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
+- Source Protection: Source Manifestを正本として既定で保護ロックし、Addition画像Source、明示追加context Source、`stagedInputRefs`を含む参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。未参照候補は検証済みcanonical `kind: input` Sourceだけに限定し、Analysisを含む派生・legacy・種別不明Sourceを候補にしない。削除transactionの復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離する。隔離中は削除導線だけをfail-closedにし、有効なSource／Analysisの索引化・閲覧は継続する。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
 - Task Management: Task Bundleを手動作業管理の正本とし、Source／Group多対多、不変コメント・blockerと追加専用event、返答待ち、Task親子・依存を管理する境界。現在値とeventは同じ`task.json`へatomicに保存し、WBSはGroupにリンクされたTaskの投影として専用正本を作らない。
 - PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
@@ -128,6 +128,7 @@ Contextory Vault/
 - Source BundleをProject／Taskフォルダへ物理移動しない。複数Project／Taskとの関連はメタデータで表現する。
 - GroupはSource IDだけを参照し、同じSourceを複数Groupへ再利用できる。Groupへの追加は生成を起動しない。
 - Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
+- Analysisを全件表示するサイドバーは「Analysis」と表示する。「未確認Analysis」は確認待ち状態だけへ検証可能に絞った投影に限定し、全件表示の別名として使わない。
 - Topic Sourceは`kind: topic`、`type: topic_excerpt`の派生Sourceである。snapshot所有Source、原音所有Source、nullableな親Revision、`system`／`microphone`等の単一role別Evidence Span、不変snapshotと選択byte列のhash、時刻／byte半開区間を保存し、原本／Transcriptを複製せず原音Sourceの該当時刻を再生する。親更新でspanを自動追従させず、Topic／Task／Group／Revision／派生Source／公開監査から参照される親Sourceは削除しない。
 - External Ticket Sourceは`kind: input`、`type: external_ticket_snapshot`の不変Inputである。provider、providerが保証する不変instance ID（なければ正規化endpoint）、不変issue ID、必要時だけproject不変IDからremote keyを確定し、endpointと変更可能なissue／project keyは表示aliasとする。remote version、取得scope、snapshot hash、operation IDで更新系列を検証し、変更時だけ一意な系列tipを参照する新Sourceを作る。不変IDを検証できない手動Sourceは`unconfirmed`のまま独立保存する。Read Adapterは公開Adapterとinterface、Job、資格情報を分け、外部ticketを変更しない。
 - 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。初回のRevision 1を含む各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDと`stagedInputRefs`を持つ。非Sourceまたは変更・削除され得る派生入力はRevision Bundleの`inputs/`へ不変snapshotする。

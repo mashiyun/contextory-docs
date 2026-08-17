@@ -30,7 +30,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 解析の成否はcanonical Analysis SourceとRevisionの不変Summary snapshotの保存・hash検証で判定する。`operationId`はJob作成時に確定して一意制約付きで索引化し、Analysis保存・Summary保存・親Manifest更新の所有者を1つに集約する。保存後の状態同期失敗は`completion_sync_pending`として起動時復旧の対象とし、試行回数を実行前に永続化して最大3回後は`completion_sync_failed`で手動対応へ切り替える。部分保存・破損は`analysis_integrity_failed`として自動再解析しない（将来実装）。
 - Whisperの生Transcriptはrole別に不変の原本として保持し、ユーザー訂正は不変の訂正Sourceとして追加する。訂正版Transcriptから要約とActionsを再生成し、過去Revisionを保持する。同一操作の収束は`operationId`、監査は`requestFingerprint`で分けて扱う（将来実装）。
 - 共通辞書とGroup／案件別辞書をローカルに保持し、次回録音の用語ヒントと文字起こし後の決定的な表記補正へ使う。同時適用は共通辞書と明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない（将来実装）。
-- Sourceは既定で保護ロックし、Manifestを正本として扱う。削除は参照整合性確認、一時ロック解除確認、削除確認を通してmacOSのゴミ箱へ移動し、失敗・取消・異常終了時は再ロックする（将来実装）。
+- Sourceは既定で保護ロックし、Manifestを正本として扱う。未参照削除候補は検証済みcanonical `kind: input` Sourceに限り、Analysisを含む派生・legacy・種別不明Sourceを含めない。削除復旧は再索引・一覧走査より先に有効recordを完了させ、不正・非Job・競合recordは削除・Source解釈せず隔離する。隔離中は削除を停止するが、有効なAnalysisの閲覧・索引化は継続する（v0.3.2で修正・検証予定）。
 - 外部Output公開は、承認時に固定したMarkdown派生SourceをJira、Confluence、Backlog Adapterへ変換する将来設計とする。送信識別子・結果・添付状態を保存し、結果不明の自動再作成は行わない。資格情報はアプリ内部でmacOS Keychainからのみ解決し、設定、Vault、URL、プロセス、ログ、診断、Gitへ出さない。
 - 外部チケット取り込みは公開と別の将来設計とし、Jira／Backlogチケットを不変External Ticket Sourceとして保存してから、ユーザー確認後にTaskまたはGroupへ関連付ける。Read Adapterは外部ticketを変更せず、APIなしの手動取り込みでも利用できる。
 
@@ -77,6 +77,6 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 
 ## 現在の状態
 
-Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）、約10〜20 CharacterのAnalysis一覧要約、未参照Source一覧と複数選択破棄、Task／Group archiveは実装済みです。この開発サイクルの最終全検証は別途実施します。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。
+Phase 0の配布・権限スパイクとPhase 1のInput Captureは完了しました。Phase 2の自動解析Queueと、Inputと分離したタスク整理画面の最初の縦切り（Analysis確認、根拠Source、Task作成、Task来歴、失敗解析の手動再実行）を実装しました。正規Sourceモデルとlegacy Analysis移行の基盤（canonical `sourceId`、Revision 1 snapshot、Bundle再索引、fail-closed gate、staging復旧）、約10〜20 CharacterのAnalysis一覧要約、Task／Group archiveは実装済みです。v0.3.1の未参照Source一覧と複数選択破棄は安全契約違反が判明しており、v0.3.2で候補の限定、削除復旧の起動順、一覧見出しを修正・検証するまで使用しません。この開発サイクルの最終全検証は別途実施します。Group整理、Revision追加UI、URL安全化、原本閲覧、監査可能なAnalysis Source対話、Actions・保護ロック、録音入力選択／無音警告、外部Output公開は未実装の将来仕様です。既存`analyses/`／`contexts/`は読み取り互換として残します。
 
 実利用のフィードバックから、Analysis一覧のJST・簡素化は実装済みです。解析成功後の状態競合修正、Transcript訂正とRevision再生成、共通／Group辞書、決定的補正、PoC後のWhisperヒントは未実装であり、実装順は[開発フェーズ](04-roadmap/development-phases.md)に記載します。

@@ -2,7 +2,7 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、未参照Source管理、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
+正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。v0.3.1の未参照Source一覧と複数選択破棄は、この文書のv0.3.2安全契約を満たさないため、修正と検証が完了するまで安全な削除導線として扱わない。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
 
 ## Source中心モデル
 
@@ -68,6 +68,7 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 - 分類は検索・絞り込みに使う属性であり、一覧の表示項目にはしない。
 - 保存する時刻はUTCのISO 8601を正本とし、表示時にだけAsia/Tokyoへ変換する。既定の表示形式は分単位の`2026/08/14 10:30`とする。
 - 表示要約が未生成の場合は推測せず、Source種別とJST日時による暫定表示を使い、`proposed`として確認対象にする。暫定表示はユーザー確定の要約ではない。
+- 全Analysisを表示するサイドバー見出しは「Analysis」とする。「未確認Analysis」は、表示対象が確認待ち状態だけへ検証可能に絞られている場合にだけ使用できる。見出しと実際の絞り込みを一致させ、確認状態を持たない既存Analysisを未確認と推測しない。
 
 #### 同一要約・同一時刻の区別
 
@@ -212,7 +213,7 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - 許容する不一致は、解決済みlegacy Bundleのdirectory名とlegacy `analysisId`、およびlegacy AnalysisManifestの`sourceIds`だけである。それ以外のidentity、schema、所有境界、参照、path、hashの検証失敗は通常どおり削除を中止する。
 - `VaultMutationLock`内で参照整合性をfail-closedで走査する。走査不能、欠損、未知schema、参照中、参照先の不整合ではcleanupを実行せず、canonical／legacyのいずれの参照先もcascade deleteしない。
 - ユーザー確認は2回必須とする。prepareで候補と検証結果を固定した後の一時ロック解除確認と、解除後に対象（canonical／legacy）、参照、identity、path、hashを再検証してから行うゴミ箱移動確認である。commit直前にも同じ検証を再実行し、いずれかが変化または失敗したら再ロックして中止する。
-- canonical Bundleと解決済みlegacy Bundleのゴミ箱移動は、永続化したprepare／commit記録を使う1つの回復可能な論理transactionとして扱う。片方だけの移動を成功とせず、移動失敗・中断・異常終了では起動時復旧で移動済みBundleを元の所有pathへ戻して`locked`へ収束させる。復元不能または状態不明ならfail-closedで隔離し、ユーザーの手動レビューまで再試行・削除を行わない。
+- canonical Bundleと解決済みlegacy Bundleのゴミ箱移動は、永続化したprepare／commit記録を使う1つの回復可能な論理transactionとして扱う。片方だけの移動を成功とせず、移動失敗・中断・異常終了では起動時復旧で移動済みBundleを元の所有pathへ戻して`locked`へ収束させる。復元不能または状態不明ならfail-closedで隔離し、ユーザーの手動レビューまで再試行・削除を行わない。起動時復旧は再索引、サイドバー件数集計、Analysis一覧、未参照候補走査より先に有効な復旧recordを完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離しなければならない。
 
 ### 受入条件
 
@@ -225,18 +226,21 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 
 ## 未参照Source一覧と複数選択破棄
 
-タスク整理画面は、削除候補を見つけるための「未参照Source」一覧を提供する。未参照は、現行Appが読めるSource、legacy Analysis／Context、Group、Taskの参照fieldに当該canonical `sourceId`がないことだけを指す。これは現在読める参照に基づく便宜的な一覧であり、Vault全体の完全な参照グラフを保証しない。読取エラーや未対応形式では、一覧を表示できない通常のエラーを示す。
+タスク整理画面は、削除候補を見つけるための「未参照Source」一覧を提供する。未参照は、現行Appが読めるSource、legacy Analysis／Context、Group、Taskの参照fieldに当該canonical `sourceId`がないことだけを指す。これは現在読める参照に基づく便宜的な一覧であり、Vault全体の完全な参照グラフを保証しない。削除候補にできるのは、Manifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceだけである。`kind: analysis`を含む全ての派生Source、legacy Analysis／Context、種別・schema・Bundle境界を検証できないSourceは、参照が0件に見えても候補にしない。読取エラーや未対応形式では、一覧を表示できない通常のエラーを示す。
 
-- 一覧は現行Appが読める参照から見て未参照のSourceだけを候補にする。候補のSource種別、表示要約またはfallback、JST日時、容量を表示し、削除の可否は既存のSource削除規則に従う。
+- 一覧は現行Appが読める参照から見て未参照であり、かつ上記の候補資格を満たすSourceだけを候補にする。候補のSource種別、表示要約またはfallback、JST日時、容量を表示し、削除の可否は既存のSource削除規則に従う。候補判定は削除可否の代替ではない。
 - ユーザーは候補を明示選択する。空の選択では開始せず、一覧の再読込やアプリ再起動で削除を予約・自動実行しない。
 - 複数選択削除では、対象件数と「macOSのゴミ箱へ移動、直ちに完全削除しない」を示す明示確認を求める。確認後、選択したSourceを順に既存のSource単位のゴミ箱移動として処理する。batch用のcandidate snapshot永続化、全件atomic transaction、特別な全件再検証、batch rollbackは行わない。
 - 各Sourceの既存削除に失敗した場合は通常のエラーを表示し、他の選択Sourceの処理結果とともに一覧を更新する。選択外のSourceを変更せず、cascade deleteを行わない。
+- 削除復旧recordは専用transaction directoryに`job.json`とpayloadを組として保持する。`job.json`を持たないentryを削除JobまたはSourceとして解釈・移動・削除しない。復旧recordの欠損・不正・復元先競合は、そのrecordを安全に隔離して削除導線をfail-closedにし、診断へoperation IDと安全な理由だけを表示する。有効な復旧recordの処理と、復旧済みSource／Analysisの索引化・閲覧・件数表示は継続する。
 
 ### 受入条件
 
 - 現行Appが読める参照から見て参照中のSourceは未参照一覧へ出ない。
+- Analysis Source、他の派生Source、legacy Analysis／Context、種別またはBundle境界を検証できないSourceは、参照数にかかわらず未参照一覧へ出ない。
 - 複数選択したSourceだけに明示確認後の順次ゴミ箱移動を実行し、各Sourceの成功・失敗を表示する。選択外のBundleを移動・更新しない。
 - legacy Analysis cleanupの例外は未参照一覧・一括削除に適用されず、同cleanupだけの専用操作に限定される。
+- 起動中の削除復旧が未完了または隔離された場合、未参照一覧と削除操作は有効化しない。一方で、隔離recordを削除JobまたはSourceとして解釈せず、有効な復旧recordと復旧済みAnalysisの一覧・件数表示を継続する。
 
 ## Task
 

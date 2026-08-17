@@ -29,8 +29,8 @@
 - 訂正・辞書操作で、原音、生Transcript、過去Revisionを削除しない。
 - 用語辞書への登録は必ずユーザー確認を経て確定する。訂正内容からの自動登録は行わない。
 - Sourceは新規・既存を問わず既定で保護ロックし、ロック情報の欠落・不正・未知値も`locked`として扱う。正本はSource Manifestであり、SQLiteは再構築可能な索引に限定する。お気に入りは保護ロックとは別の将来の絞り込み属性とする。
-- 未参照Source一覧は、現行Appが読める参照だけを候補根拠とする。読取エラーや未対応形式では通常のエラーを表示し、完全な参照グラフを保証しない。
-- 未参照Sourceの複数選択削除は、対象を示す明示確認後に既存のSource単位ゴミ箱移動を順に実行する。batchのsnapshot、atomicity、全件再検証、rollbackを追加せず、各Sourceの通常の成功・失敗を表示する。
+- 未参照Source一覧は、現行Appが読める参照だけを候補根拠とする。候補はManifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceに限定し、Analysisを含む派生Source、legacy Analysis／Context、種別不明Sourceを候補にしない。読取エラーや未対応形式では通常のエラーを表示し、完全な参照グラフを保証しない。
+- 未参照Sourceの複数選択削除は、対象を示す明示確認後に既存のSource単位ゴミ箱移動を順に実行する。batchのsnapshot、atomicity、全件再検証、rollbackを追加せず、各Sourceの通常の成功・失敗を表示する。候補資格が検証できない場合と削除復旧が未完了または隔離中の場合は、一覧と削除をfail-closedにする。
 - Task／Groupの「削除」はarchiveであり、Bundle、根拠link、履歴を物理削除・Trash移動しない。
 - 外部公開はユーザーの明示承認後だけに行う。公開先の資格情報はmacOS Keychainに限定し、アプリ内部でだけ参照を解決する。UserDefaults／plist、Local Vault、Markdown、ログ、Git、URL query、プロセス引数、環境変数、診断、クラッシュ情報、HTTPデバッグ出力へ保存・出力しない。
 - 外部チケットのRead Adapterはinterface、Job、監査、Keychain credentialを外部公開Adapterから分離し、Read専用の最小scopeだけを使う。外部ticketの変更、コメント、完了を行わず、pagination未完了などの部分API取得をSourceとして保存しない。不変remote IDを検証できない手動Sourceは`unconfirmed`として独立保存し、推測で統合しない。添付redirect先へ元credentialを転送しない。
@@ -61,6 +61,7 @@
 - `summary.md`や文字起こしが生成済みでも原本を自動削除しない。削除候補を提示し、対象をユーザーが確認して明示承認した場合だけ処理する。
 - 原本を削除した後もSource Bundle、Manifest、原本SHA-256、要約、文字起こし、削除日時と理由を保持する。
 - ただし、誤取得や不要データについてユーザーが「Analysisと元データを削除」を明示した場合は、Task、Group、別Analysis／Revision、Addition、追加context、`stagedInputRefs`から参照されていないことを確認したうえでSource BundleごとmacOSのゴミ箱へ移動できる。この操作は容量整理ではなくSource全体の破棄として扱う。
+- 削除transactionの起動時復旧は、再索引、サイドバー集計、一覧表示、未参照候補走査より先に有効recordを完了させる。復旧recordの不正、欠損、復元先競合は安全に隔離して削除導線を停止するが、有効なSource／Analysisの閲覧や件数表示は継続する。`job.json`を持たないentryを削除JobまたはSourceとして解釈・移動・削除しない。
 - 保護ロック中はこの削除を実行できない。削除の順序は「参照確認→削除操作中だけの一時ロック解除確認→対象・参照影響を表示する削除確認→macOSゴミ箱移動」に統一する。Group、Task、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、派生Source、外部公開記録も参照整合性確認の対象とし、走査不能、欠損、hash不一致ではfail-closedにする。cascade deleteは行わない。
 - 恒久的な手動ロック解除と、削除操作中の一時解除を分離する。一時解除は参照検出、キャンセル、失敗、異常終了、ゴミ箱移動成功のいずれでも自動再ロックする。既存Sourceの保護backfillが失敗・中断・未検証なら削除不可とする。
 - AI処理失敗中、未確認、処理中、返答や判断の根拠として必要な原本は削除候補にしない。

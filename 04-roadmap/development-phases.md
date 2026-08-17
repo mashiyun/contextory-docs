@@ -34,12 +34,13 @@
 
 ## 次のLibrary安全管理実装順
 
-以下は実装済みである。この開発サイクルの最終全検証は別途実施する。実利用Vaultは対象にしない。
+v0.3.1までに以下の導線を実装したが、未参照Source候補と削除復旧にはv0.3.2の緊急安全修正が必要であり、修正・独立レビュー・回帰検証が完了するまで削除導線の完了を主張しない。実利用Vaultは検証対象にしない。
 
 1. Analysis一覧の要約を、保存値を変更せず表示時だけ約10〜20 Characterへ短縮した。20 Character超過時は19 Character＋`…`とし、legacy値にも同じ規則を適用する。
-2. 現行Appが読める参照だけを使う未参照Source一覧を追加した。読取エラーや未対応形式では通常のエラーを表示し、完全な参照グラフは保証しない。
+2. v0.3.1で現行Appが読める参照だけを使う未参照Source一覧を追加した。v0.3.2では候補を検証済みcanonical `kind: input` Sourceへ限定し、Analysisを含む派生・legacy・種別不明Sourceを候補から恒久的に除外する。
 3. TaskとGroupの削除導線をarchiveへ統一した。Bundle、link、履歴を保持し、状態だけを保存する。
-4. 未参照Sourceの複数選択Trash移動を実装した。対象を明示確認した後、既存のSource単位ゴミ箱移動を順に実行し、各Sourceの結果を表示する。batchのsnapshot、atomicity、全件再検証、rollbackは追加しない。
+4. v0.3.1で未参照Sourceの複数選択Trash移動を実装した。v0.3.2では削除復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・非Job・競合recordは削除・Source解釈せず安全に隔離する。隔離中は未参照一覧と削除操作をfail-closedにするが、有効なAnalysis一覧・件数表示は継続する。
+5. v0.3.2で、全Analysis表示のサイドバー見出しを「Analysis」へ修正する。「未確認Analysis」は確認待ちだけへ検証可能に絞った投影以外では使用しない。
 
 ## 次期Topic Source・Task・PM実装順
 

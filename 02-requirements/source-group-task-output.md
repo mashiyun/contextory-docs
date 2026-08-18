@@ -128,7 +128,7 @@ Analysis一覧で項目を選択する操作は、Inputの取得・取り込み�
 - 「詳細を表示」後は、従来のMarkdown、Revision、追加情報、根拠Source、媒体・Transcriptの詳細を確認できる。
 - 詳細読込中に別のAnalysisを選択しても、前のAnalysisの完了結果や失敗表示が新しい選択へ混入しない。
 - 詳細読込の実行中・失敗時も、一覧の再選択とInput取得・取り込みを継続できる。
-- この表示最適化でSource／Analysis／Revisionの永続schema、保存済み本文、来歴、保護ロック、削除規則を変更しない。
+- この表示最適化でSource／Analysis／Revisionの永続schema、保存済み本文、来歴、削除規則を変更しない。
 
 ## 解析完了判定と状態表示
 
@@ -208,19 +208,15 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - Revisionに追加した画像とテキストも、追加情報ごとに閲覧できる。
 - URLは出典として追加できるが、URL自体から自動取得・自動解析はしない。
 
-## Source削除防止ロック
+## Source削除
 
-新規・既存を問わず、すべてのSourceは既定で保護ロックする。お気に入りは将来の絞り込み用であり、保護ロックとは独立した状態である。
+Source削除は、複雑なロック操作ではなく、実際に利用中の参照確認と1回の明示確認で行う。完全削除はせず、対象BundleをmacOSのゴミ箱へ移動する。既存Manifestの`protection`は読み取り互換と削除transactionの内部復旧にだけ保持し、画面にロック解除・恒久ロックの操作を表示しない。
 
-- 保護ロック中は、当該Sourceの「Analysisと元データの削除」を実行できない。
-- `protection`の欠落、不正値、未知値は必ず`locked`として読み、削除を許可しない。Source Manifestを保護状態の唯一の正本とし、SQLiteはBundle走査で再構築できる索引に限定する。
-- 既存Sourceは保護状態を`locked`へatomicかつ冪等にbackfillする。backfillが未完了・失敗・検証不能なSourceは削除を許可しない。
-- 削除の順序は「参照確認 → 削除操作中だけの一時ロック解除確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
-- 恒久的な手動ロック解除は、削除操作中の一時解除とは別操作・別状態とする。一時解除は削除成功、参照検出、キャンセル、失敗、異常終了のいずれでも自動的に`locked`へ戻す。
-- ロック解除・削除は通常の閲覧、再分析、Task作成から視覚的に分離した危険操作領域に置く。
+- 削除の順序は「参照確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
+- ロック解除は通常の閲覧、再分析、Task作成、削除のいずれにもユーザー操作として表示しない。
 - 削除前にTask、Group、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、Topicの親参照／Evidence Span／proposal、Taskのコメント・blocker・変更根拠、派生Source、外部公開記録からの参照整合性を`VaultMutationLock`内で確認する。参照中、参照走査不能、参照先欠損、path不正、hash不一致では削除を中止して判明した参照先を表示し、RevisionまたはAnalysisの削除でもcascade deleteしない。
+- 親Sourceの`analysisCompletions`は追加専用の完了監査記録であり、利用中のAnalysisへの参照として削除を恒久的に妨げない。Analysis Sourceを削除してもこの監査記録は書き換えずに残し、削除済みAnalysisへの過去記録として扱う。Task、Group、別Analysis／Revision、Addition、来歴などの実利用参照は引き続き削除を妨げる。
 - 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
-- 既存Sourceへの導入時も既定を保護ロックとし、Manifestへのbackfill完了まではロック解除済みと推測しない。
 
 ### legacy互換不一致だけのAnalysis Source cleanup例外
 
@@ -232,7 +228,7 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 - legacy Bundleの探索は承認済みlegacy root配下を再帰的に行ってよいが、解決結果はroot自身ではなく、そのrootに所有されるBundle境界の子directoryでなければならない。root直下の`analysis.json`、任意の親directory、非Bundle directoryを一致候補として採用せず、rootまたは複数Bundleをゴミ箱へ移動しない。
 - 許容する不一致は、解決済みlegacy Bundleのdirectory名とlegacy `analysisId`、およびlegacy AnalysisManifestの`sourceIds`だけである。それ以外のidentity、schema、所有境界、参照、path、hashの検証失敗は通常どおり削除を中止する。
 - `VaultMutationLock`内で参照整合性をfail-closedで走査する。走査不能、欠損、未知schema、参照中、参照先の不整合ではcleanupを実行せず、canonical／legacyのいずれの参照先もcascade deleteしない。
-- ユーザー確認は2回必須とする。prepareで候補と検証結果を固定した後の一時ロック解除確認と、解除後に対象（canonical／legacy）、参照、identity、path、hashを再検証してから行うゴミ箱移動確認である。commit直前にも同じ検証を再実行し、いずれかが変化または失敗したら再ロックして中止する。
+- ユーザー確認は1回とする。prepareで候補と検証結果を固定し、対象（canonical／legacy）、参照、identity、path、hashを再検証してからゴミ箱へ移動する。commit直前にも同じ検証を再実行し、いずれかが変化または失敗したら中止する。
 - canonical Bundleと解決済みlegacy Bundleのゴミ箱移動は、永続化したprepare／commit記録を使う1つの回復可能な論理transactionとして扱う。片方だけの移動を成功とせず、移動失敗・中断・異常終了では起動時復旧で移動済みBundleを元の所有pathへ戻して`locked`へ収束させる。復元不能または状態不明ならfail-closedで隔離し、ユーザーの手動レビューまで再試行・削除を行わない。起動時復旧は再索引、サイドバー件数集計、Analysis一覧、未参照候補走査より先に有効な復旧recordを完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離しなければならない。
 
 ### 受入条件
@@ -343,7 +339,7 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 4. AI対話: 選択済みSource／Groupだけの一時staging、監査履歴、Revisionを介した`summary.md`反映を実装する。
 5. Task関連: TaskとSource／Groupの多対多関連、`task.json`のlink正本、逆引き索引を実装する。
 6. 派生Source生成: Source単体・複数Source・Groupから派生Sourceを生成し、後続生成へ再利用する。
-7. Review改善: Analysis一覧の具体的要約とJST日時表示、Actionの独立表示、保護ロック付き削除を実装する。
+7. Review改善: Analysis一覧の具体的要約とJST日時表示、Actionの独立表示、参照確認付き削除を実装する。
 8. 外部Output公開: 承認画面、Markdown添付、Adapter、公開監査と復旧を実装する。
 
 ## 外部Output公開基盤

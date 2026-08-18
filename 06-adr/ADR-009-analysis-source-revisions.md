@@ -19,7 +19,7 @@ ADR-006はAnalysisを追加専用で保存する方針を定めたが、Context�
 - legacy `analysisId`から正規`sourceId`への対応を永続保存する。移行時は旧Bundleを上書きせず、既存summaryをRevision 1の不変snapshotとして正規Source側へ保存する。
 - 新規書き込みへの切替は、全legacy Analysisの対応作成、Revision 1の`summaryPath`とSHA-256検証、Bundle走査でのSQLite再構築を確認した後に行う。確認不能なlegacy Analysisは読み取り互換に留め、手動レビュー対象とする。
 - 移行済みAnalysis Sourceのlegacy cleanupでは、`schemaVersion: 3`のcanonical `kind: analysis`を通常どおり厳格に検証したうえで、`schemaVersion: 2`の対応するlegacy Analysis Bundleをちょうど1件だけ削除対象に含められる。許容するlegacy互換不一致はBundle directory名およびlegacy AnalysisManifestの`sourceIds`だけとし、canonical側のpath／Manifest／ID不一致、ID対応不全、参照・hash・schema不全、0件または複数件のlegacy候補ではfail-closedとする。legacy rootは再帰探索の起点にすぎず、root自身、root直下の単独Manifest、親directory、非Bundle directoryを削除候補にしない。
-- cleanupは`VaultMutationLock`内でprepare、一時ロック解除、commit直前に再検証し、一時解除確認とゴミ箱移動確認の2回を要求する。canonical／legacy BundleのTrash移動は回復可能な論理transactionとし、片方だけの移動を成功とせず、失敗・中断時は復元して`locked`へ収束させ、復元不能・状態不明はfail-closedで隔離する。これは通常削除の厳格性を緩めず、参照先のcascade deleteを許可しない。
+- cleanupは`VaultMutationLock`内でprepareとcommit直前に再検証し、ゴミ箱移動確認を1回だけ要求する。canonical／legacy BundleのTrash移動は回復可能な論理transactionとし、片方だけの移動を成功とせず、失敗・中断時は復元し、復元不能・状態不明はfail-closedで隔離する。これは実利用参照の削除保護を緩めず、参照先のcascade deleteを許可しない。
 - 未参照Sourceの一括削除は、Manifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceだけを候補にする。`kind: analysis`を含む派生Source、legacy Analysis／Context、種別不明Sourceを候補にせず、legacy cleanup例外をこの一覧へ一般化しない。削除transactionの復旧は再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させる。不正・非Job・競合recordは削除・Source解釈せず隔離し、削除導線だけをfail-closedにして有効なAnalysisの閲覧を継続する。
 - 同じAnalysis Sourceへのテキスト、画像、URL追加と再分析は、新しいAnalysis Sourceではなく不変のAnalysis Revisionを追加する。
 - Revisionは連番、日時、理由、追加情報、追加画像Source ID、ユーザー指示、使用Provider／モデル、確認状態、実際に使用したSource ID、直前との差分、summary本文の不変snapshot、`summaryPath`、SHA-256を構造化して保存する。ハッシュだけのRevisionは認めない。

@@ -119,7 +119,7 @@
 - Transcript訂正の再解析でstagingへ置けるのは、訂正版Transcript、解析に必要な適用済み辞書項目だけを抽出した派生excerpt、およびユーザーが選択した代表フレーム、画像、テキスト、安全化済みURLとする。`dictionaryExcerptVersion: 1`はUTF-8 JSONとし、元`dictionaryRevisionRefs`、使用した`entryId`、正しい表記、scopeを固定key順で保存し、entryはscope（common、group）と`entryId`の順にsortする。excerpt正本はRevision監査領域へ不変保存し、永続パスとSHA-256を記録したうえでstagingへcopyする。辞書Revision snapshot全体は、ユーザーがその送信を明示選択しない限りstagingへ置かない。
 - 音声・動画原本はClaudeへ渡さない。訂正・辞書機能でもこの境界を変更しない。
 - `localOpenUrl`、未選択Source、Source Bundle全体はstagingへ置かない。
-- 訂正・辞書操作で、原音、生Transcript、過去Revisionを削除しない。Source削除は既定の保護ロックと参照整合性確認を通す手順に従う。
+- 訂正・辞書操作で、原音、生Transcript、過去Revisionを削除しない。Source削除は参照整合性確認と明示確認を通す手順に従う。
 
 ### 受入条件
 

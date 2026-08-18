@@ -2,7 +2,7 @@
 
 ## Status
 
-次期設計。ここで定めるTopic Source、手動Task管理、WBS、ブロッカー、PM支援ビューは未実装である。既存のSource／Group正本、Revision、保護ロック、来歴を拡張する仕様であり、既存の実利用Vaultを移行・変更する作業は含まない。
+次期設計。ここで定めるTopic Source、手動Task管理、WBS、ブロッカー、PM支援ビューは未実装である。既存のSource／Group正本、Revision、参照整合性、来歴を拡張する仕様であり、既存の実利用Vaultを移行・変更する作業は含まない。
 
 ## 正本と共通原則
 

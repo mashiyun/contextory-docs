@@ -42,7 +42,7 @@
 - 将来の任意機能として、人物名を保持しながら不要な個人情報をマスクする判定ルールを設けるか。実装しないことや検出失敗をClaude送信停止の理由にしない。
 - 日次レビューの通知時刻、未確認件数、優先順位をどう表示するか。
 - Library／Review Interfaceを同一アプリ内の別ウィンドウ、別アプリ、ローカルWeb UIのどれにするか。
-- 保護ロックの解除履歴、ゴミ箱からの復元時のロック状態、参照中Sourceを削除候補画面でどう説明するか。
+- ゴミ箱からの復元時の表示と、参照中Sourceを削除候補画面でどう説明するか。
 - Jira／ConfluenceのCloud・Data Center種別、Backlogの会社環境、必須Custom Field、Project／Space選択、添付制限をどう確定するか。Adapter実装時のAPI仕様はAtlassian／Nulabの公式資料だけで確認する。
 - Jira Read Adapterの対象をCloud／Data Centerのどちらにするか、Backlog対象環境・認証方式・必要scope、instance IDの不変性、issue IDの一意scopeと不変性をどう確定するか。Read Adapterのpagination、rate limit、retry、timeout、pagination中のremote更新を検出するconsistency anchorの具体方式は、対象環境の公式資料で確認してから固定する。これは各Read Adapterの開始ゲートであり、`unconfirmed`手動取り込みを妨げない。
 - 手動取り込みの`unconfirmed` External Ticket Sourceを、Adapterが取得した不変issue IDと照合してどの確認UIでconfirmed系列へ関連付けるか。既存Sourceのidentityを上書きせず、確認eventまたは新Sourceで関連を表す方式は段階2開始前に確定する。推測によるremote key付与・既存snapshotとの自動統合はしない。

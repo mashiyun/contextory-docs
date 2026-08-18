@@ -34,7 +34,7 @@ Local Vaultは、SourceごとのファイルBundleとSQLite Indexを組み合わ
 ### ManifestとMarkdown
 
 - `manifest.json`を機械可読な永続メタデータとする。
-- Sourceの削除保護ロック`protection`はManifestを唯一の正本とする。`protection`の欠落・不正・未知値は`locked`として読む。SQLiteはSource保護ロックの正本を保持せず、保持できる「ロック」は処理中の排他制御・一時的な実行状態だけを指す。
+- 既存Sourceの`protection`はManifestに読み取り互換として残すが、画面の削除可否には使わない。削除可否は実利用中の参照整合性と1回の明示確認で決める。SQLiteは削除可否の正本を保持せず、保持できる「ロック」は処理中の排他制御・一時的な実行状態だけを指す。
 - Markdownをユーザーとアプリが確認・再利用できる成果物とする。Claude Codeには選択した送信対象だけを、ADR-012の一時staging directoryからRead限定で渡す。
 - Analysis Sourceの最新`summary.md`はRevision snapshotから再生成するmaterialized viewとし、Revisionの代替正本にしない。
 - AI生成内容とユーザー確認済み内容を状態で区別する。

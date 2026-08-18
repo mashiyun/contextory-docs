@@ -101,9 +101,9 @@ Source IDにはULIDまたは同等の衝突しにくい識別子を使用する�
 
 既存Source Manifestの`id`、`summary`、`taskIds`、`groupIds`は後方互換のため読み込める。新規書き込みでは`sourceId`を使い、`taskIds`と`groupIds`を更新しない。新規のAnalysis SourceはRevision Bundleの最新投影として`summary.md`を持ち、構造化Revision履歴から再生成する。既存`analyses/`は新規結果の保存先とせず、対応するAnalysis Sourceの読み取り互換表現とする。
 
-`protection`はSource Manifestの正本フィールドである。`state`が欠落・不正・未知値なら必ず`locked`として読む。SQLiteの保護状態はBundle走査から再構築できる索引であり、削除可否の正本ではない。`favorite`は既定`false`の独立属性であり、保護ロックや削除許可を示さない。
+`protection`は既存Sourceとの読み取り互換と削除transaction内部の復旧用フィールドである。画面の削除可否はこの値で決めず、実利用中の参照整合性と1回の明示確認で決める。SQLiteの状態はBundle走査から再構築できる索引であり、削除可否の正本ではない。`favorite`は既定`false`の独立属性である。
 
-既存Bundleへのbackfillは、一時ファイルを検証してから同一filesystem上でManifestを原子的に置換する、冪等な操作とする。backfillが失敗・中断・未検証なら、そのBundleは削除不可とする。通常の恒久的な手動ロック解除と、削除操作だけに用いる一時解除は別の状態として記録する。一時解除は参照確認後に削除確認のためだけに有効にし、参照検出、キャンセル、失敗、異常終了、またはゴミ箱移動の成功時には自動的に`locked`へ戻す。
+既存Bundleの`protection` backfillは読み取り互換のための冪等な操作とする。backfillの成否は削除可否を決めない。削除transactionの一時状態は実装内部だけで扱い、参照検出、キャンセル、失敗、異常終了時にはBundleを移動しない。
 
 Phase 1では`sourceApplication`へ取得時の前面アプリ名とBundle IDだけを保存する。メール件名、文書名、ウィンドウタイトルは自動メタデータへ含めない。既存Manifestに`sourceApplication`がない場合も読み込める後方互換を維持する。
 
@@ -123,7 +123,7 @@ GroupはSource Bundleを物理移動せずIDで関連付ける。Group–Source�
 - version 3 Source／version 2 Revisionの既存切替順は、(1) readerと旧フィールド解決規則、(2) SQLite migration、(3) Bundle検証、(4) 部分一意索引、(5) writer有効化の順を維持する。Revision version 3も同じreader先行順序で、`stagedInputRefs`用の再構築可能なSQLite表、Bundle内snapshotと参照hashの検証を追加してからwriterを有効化する。External Ticket Sourceのversion 4切替は別の後続migrationとし、いずれも旧Bundleを一括変換しない。
 - 既存行のnullable `operation_id`はlegacy読み取り互換のためだけに許容する。新規writerはnullを拒否する。重複、schema不明、hash不一致、索引作成失敗のいずれかを検出した場合はwriter切替をfail-closedで停止し、旧データを変更しない。
 
-親Source Manifestの`analysisCompletions`は追加専用recordの配列とし、各recordは`operationId`、`analysisSourceId`、`revisionId`、`summarySnapshotSha256`、`completedAt`を持つ。同じ`operationId`・同じ参照・同じhashの追加は冪等な成功とし、同じ`operationId`で参照またはhashが異なる場合は`analysis_integrity_failed`として上書きしない。別`operationId`のrecordは既存recordを削除せず追加する。この投影はAnalysisの成功境界ではなく、`AnalysisStore`だけがcanonical Analysis保存後に更新する。Processing Jobは投影先を`originatingSourceId`として1件だけ固定し、複数の`usedSourceIds`やGroupメンバーへ完了状態を配布しない。
+親Source Manifestの`analysisCompletions`は追加専用recordの配列とし、各recordは`operationId`、`analysisSourceId`、`revisionId`、`summarySnapshotSha256`、`completedAt`を持つ。同じ`operationId`・同じ参照・同じhashの追加は冪等な成功とし、同じ`operationId`で参照またはhashが異なる場合は`analysis_integrity_failed`として上書きしない。別`operationId`のrecordは既存recordを削除せず追加する。この投影はAnalysisの成功境界ではなく、`AnalysisStore`だけがcanonical Analysis保存後に更新する。削除済みAnalysisを指すrecordも過去の完了監査として保持し、liveな削除保護参照には扱わない。Processing Jobは投影先を`originatingSourceId`として1件だけ固定し、複数の`usedSourceIds`やGroupメンバーへ完了状態を配布しない。
 
 ### Group
 
@@ -560,7 +560,7 @@ SQLiteへ画像、音声、動画をBLOBとして保存しない。SQLiteを唯�
 - 未参照候補の投影は、Manifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceだけを母集団とする。`kind: analysis`、`output`、`topic`などの派生Source、legacy Analysis／Context、種別・schema・Bundle境界が不明なentryは参照数にかかわらず母集団へ入れない。
 - Claude実行前と削除前は`VaultMutationLock`内で、Addition画像Source、明示追加context Source、Revisionおよび追加専用AI invocation auditの`stagedInputRefs`が参照するSource／Revision／snapshotを走査し、所有Source ID、相対path、symlink不使用、staged／original SHA-256を検証する。走査不能、欠損、Bundle外path、hash不一致ではfail-closedとし、Analysis／Revision削除時も参照先をcascade deleteしない。
 - 移行済みAnalysis Sourceのlegacy cleanupだけは、canonical Manifestが`schemaVersion: 3`かつ`kind: analysis`で、要求・canonical Bundle directory・Manifestの`sourceId`、canonical path／Manifest／hash、legacy `analysisId`対応が検証済みであり、`schemaVersion: 2`のlegacy AnalysisManifestを持つ所有下の子Bundleを承認済みlegacy rootの再帰走査からちょうど1件だけ解決できる場合に限る。legacy root自身、root直下の単独`analysis.json`、親directory、非Bundle directoryを候補にせず、canonical側の不一致、またはlegacy Bundle directory名／legacy AnalysisManifestの`sourceIds`以外の不一致はfail-closedとする。通常削除の厳格な一致検証は緩めない。
-- このcleanupは`VaultMutationLock`内でprepare、一時ロック解除、commit直前にcanonical／legacyのidentity、schema、所有path、Manifest、hash、全参照を再検証し、2回のユーザー確認（一時解除、ゴミ箱移動）を要求する。canonical／legacy BundleのTrash移動は永続prepare／commit記録を持つ回復可能な論理transactionとし、片方だけの移動を成功としない。中断・失敗時は起動時に移動済みBundleを元の所有pathへ復元して`locked`へ戻し、復元不能・状態不明はfail-closedで隔離して自動削除・cascade deleteを行わない。
+- このcleanupは`VaultMutationLock`内でprepareとcommit直前にcanonical／legacyのidentity、schema、所有path、Manifest、hash、全参照を再検証し、1回のゴミ箱移動確認を要求する。canonical／legacy BundleのTrash移動は永続prepare／commit記録を持つ回復可能な論理transactionとし、片方だけの移動を成功としない。中断・失敗時は起動時に移動済みBundleを元の所有pathへ復元し、復元不能・状態不明はfail-closedで隔離して自動削除・cascade deleteを行わない。
 - Project／Task／Group関連を変更しても原本ファイルを移動・複製しない。
 - 関係の更新時は、Task–Source／Task–Groupなら対象`task.json`だけ、Group–Sourceなら対象`group.json`だけを更新する。Source Manifestへ逆方向のID配列を書き戻さない。
 - Topic Source確定時は`VaultMutationLock`内で親Source／親Revision／snapshotと選択byte列のhash、時刻／byte／scalar境界、追加後の全Source来歴DAGを検証する。参照先欠損、`spanId`／`displayOrder`／`parentSourceIds`の重複、union不一致、自己参照、推移的循環を拒否する。Topic／Task／Group／Revision／派生Source／公開監査から参照されるSource、または参照走査不能なSourceは削除不可とする。

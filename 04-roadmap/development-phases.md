@@ -191,7 +191,7 @@ Status: 完了（2026-08-11）
 - 来歴をGitHub風のラインで表示するグラフUIを検討する。
 - 音声・動画の削除候補提示と、対象確認を伴う明示承認。期間による自動削除は行わない。
 - Analysis／Sourceの参照確認付きゴミ箱移動。
-- 新規・既存Sourceの既定保護ロック。Group／Task／派生Source／外部公開記録を含む「参照確認→一時ロック解除の確認→削除確認→macOSのゴミ箱へ移動」の順で削除する。
+- Group／Task／派生Source／外部公開記録を含む「参照確認→削除確認→macOSのゴミ箱へ移動」の順で削除する。
 - Analysis一覧を、内容が分かる具体的な要約とJST日時だけの表示へ簡素化する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面へ移す。要約の根拠・確認状態・ユーザー修正を保存し、未生成時はSource種別とJST日時で暫定表示する。同一要約・同一分の集合だけ秒、なお一致する場合だけ小数秒まで拡張する。
 - `presentationSummary`を新規書き込み先とし、legacy `presentationTitle`を読み取り互換で残す。effective summaryの優先順位を読込・書込・再索引で統一し、読込時のbackfillと一括更新を行わない。
 - 解析成功後の状態競合修正。Revisionの不変Summary snapshot検証を成功判定とし、`AnalysisStore`を親Manifest更新の唯一の所有者にする。`operationId`の事前確定・一意制約・fail-closed再索引、保存前失敗・`completion_sync_pending`・`analysis_integrity_failed`の分離、起動時復旧、試行前の回数永続化、最大3回の自動再同期、`completion_sync_failed`と手動再同期を実装する。

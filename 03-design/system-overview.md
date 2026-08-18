@@ -39,7 +39,7 @@ Capture / Audio Recording / Screen Recording
 - AI Invocation Audit: 初回解析を含む各Revisionの`stagedInputRefs`へ送信時点の入力所有Source、Revision、`contentRole`、`inputType`、元path、staging論理path、staged bytesと原ファイルのhash、MIME `contentType`、transformation／versionを固定し、Group展開結果、モデル、prompt schema、結果状態と結び付ける。Revisionを作らないAI対話／Group展開にも同じ配列を追加専用のauditとして残し、一時stagingは正本にしない。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
-- Source Protection: Source Manifestを正本として既定で保護ロックし、Addition画像Source、明示追加context Source、`stagedInputRefs`を含む参照整合性確認、一時ロック解除確認、削除確認を通す危険操作境界。未参照候補は検証済みcanonical `kind: input` Sourceだけに限定し、Analysisを含む派生・legacy・種別不明Sourceを候補にしない。削除transactionの復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離する。隔離中は削除導線だけをfail-closedにし、有効なSource／Analysisの索引化・閲覧は継続する。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
+- Source Trash: Addition画像Source、明示追加context Source、`stagedInputRefs`を含む実利用参照を確認し、1回の明示確認後にBundleをmacOSのゴミ箱へ移動する危険操作境界。親Sourceの追加専用`analysisCompletions`は完了監査であり、Analysis Source削除のlive参照には数えず、削除後も親Sourceに残す。既存Manifestの`protection`は読み取り互換とtransaction内部復旧にだけ保持し、ユーザーへロック解除を求めない。未参照候補は検証済みcanonical `kind: input` Sourceだけに限定し、Analysisを含む派生・legacy・種別不明Sourceを候補にしない。削除transactionの復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離する。隔離中は削除導線だけをfail-closedにし、有効なSource／Analysisの索引化・閲覧は継続する。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
 - Task Management: Task Bundleを手動作業管理の正本とし、Source／Group多対多、不変コメント・blockerと追加専用event、返答待ち、Task親子・依存を管理する境界。現在値とeventは同じ`task.json`へatomicに保存し、WBSはGroupにリンクされたTaskの投影として専用正本を作らない。
 - PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
@@ -133,7 +133,7 @@ Contextory Vault/
 - External Ticket Sourceは`kind: input`、`type: external_ticket_snapshot`の不変Inputである。provider、providerが保証する不変instance ID（なければ正規化endpoint）、不変issue ID、必要時だけproject不変IDからremote keyを確定し、endpointと変更可能なissue／project keyは表示aliasとする。remote version、取得scope、snapshot hash、operation IDで更新系列を検証し、変更時だけ一意な系列tipを参照する新Sourceを作る。不変IDを検証できない手動Sourceは`unconfirmed`のまま独立保存する。Read Adapterは公開Adapterとinterface、Job、資格情報を分け、外部ticketを変更しない。
 - 同じAnalysis Sourceへ追加して再分析する場合、Revision Bundleを追加する。初回のRevision 1を含む各Revisionは追加情報、理由、使用モデル、確認状態、差分、実際に使用したSource IDと`stagedInputRefs`を持つ。非Sourceまたは変更・削除され得る派生入力はRevision Bundleの`inputs/`へ不変snapshotする。
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
-- Analysisの一覧表示用の具体的要約、Action、Source保護ロック、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
+- Analysisの一覧表示用の具体的要約、Action、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
 - 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
 - Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列とSQLiteはlegacy cacheまたは再構築可能な索引である。
 - Taskは手動作成・編集可能で、タイトル、説明、状態、優先度、担当、予定／実績日、進捗、milestone、確認状態、作成元、`parentTaskId`、表示順、依存を持つ。コメントとblockerは追加専用とし、返答待ちは実作業状態と別に表現する。ユーザー確定値をAIが上書きしない。
@@ -159,7 +159,7 @@ Contextory Vault/
 - 保存中、AI処理中、完了、失敗を小さな状態表示またはOS通知で示す。
 - 誤操作に備え、直近の取得を破棄できるようにする。
 - メニューバーに確定済みSource数とLocal Vault使用量を表示する。
-- Sourceは既定で保護ロックする。削除は参照整合性確認、一時ロック解除確認、削除確認を通過してからSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。参照検出、キャンセル、失敗、異常終了、ゴミ箱移動成功時には一時解除を自動再ロックする。恒久的な手動ロック解除とは別に扱う。
+- 削除は参照整合性確認と1回の削除確認を通過してからSource BundleをmacOSのゴミ箱へ移動し、即時完全削除しない。transaction内の一時的な復旧状態はユーザーへ表示・操作させず、参照検出、キャンセル、失敗、異常終了時もBundleを移動しない。
 - タスク整理画面では、現行Appが読める参照から見て未参照のSourceを削除候補として表示できる。読取エラーや未対応形式では通常のエラーを表示し、Vault全体の完全な参照グラフを保証しない。候補は複数選択でき、対象件数を示す明示確認後に既存のSource単位Trash移動を順に実行して、各Sourceの結果を表示する。batchのsnapshot、atomicity、全件再検証、rollbackは行わず、cascade deleteをしない。
 - Task／Groupの削除導線はhard deleteではなくarchiveである。Bundle、link、コメント・blocker・変更履歴を保持し、BundleをTrashへ移さず、参照元の自動unlinkやcascade deleteを行わない。
 - 音声モデルは`Application Support/Contextory/Models`へ置き、Local Vault、Git、アプリ更新から分離する。

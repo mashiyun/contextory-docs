@@ -44,7 +44,7 @@ Capture / Audio Recording / Screen Recording
 - PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
 - Grouping: Project／Task候補、関連根拠、確信度の生成。
-- Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。別途設計する。
+- Library／Review Interface: 一覧、検索、詳細確認、グルーピング修正、日次レビュー。Analysis選択直後は一覧の軽量表示投影からタイトルとActionsだけを示し、Markdown、Revision、追加情報、根拠Source、媒体、Transcriptは「詳細を表示」後に対象Analysisだけをバックグラウンドで遅延読込する。読込結果は選択世代と対象IDを照合して反映し、Inputと一覧操作をブロックしない。これは表示用の読込境界であり、Local Vaultの正本・schema・来歴を変更しない。
 - Docs: プロダクト仕様と意思決定の正本。
 
 ## 技術スタック
@@ -234,6 +234,7 @@ Contextory Vault/
 - 一覧の表示要約は、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、種別と日時のfallbackの順に解決する。保存値は読込時に削除・backfillせず、表示時だけ実装言語の`Character`単位で20 Characterを超える値を19 Character＋`…`へ短縮する。
 - Analysis詳細では、role別の生Transcript、統合Transcript、辞書補正後Transcript、現在の訂正版、訂正履歴、過去Summaryを確認できる。訂正版からSummaryとActionsを再生成し、過去Revisionを保持する。
 - Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
+- Analysisを選択した直後は、タイトルと「あなたの対応」だけを軽量な表示投影から表示し、Markdown、Revision、追加情報、根拠Source、媒体・Transcriptの詳細を自動読込しない。「詳細を表示」を押した対象だけをバックグラウンドで遅延読込し、読込中・失敗・再試行は詳細領域へ限定して示す。選択変更後の古い結果は対象IDと選択世代の照合で破棄し、Inputと一覧操作をブロックしない。
 - Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。
 - Task詳細から根拠Analysis、Source、親Taskへ逆引きできる。
 - タスク整理画面には将来「外部チケットを取り込む」を置き、URL／手動入力とAPI取得を選ぶ。保存前にidentity、取得範囲、重複候補、前回取得日時、差分を確認し、保存のみ・Group追加・Task作成・既存Task linkをユーザーが選ぶ。常駐メニューバーへ複雑な同期操作を追加しない。

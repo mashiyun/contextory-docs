@@ -23,12 +23,13 @@
 
 実利用で確認した不具合と、音声文字起こしの訂正・用語辞書は、次の順で実装する。前段の永続化・検証条件を満たすまで後続を開始しない。
 
-1. Analysis一覧のJST日時表示と簡素化。一覧を具体的な約10〜20 Characterの要約とJST日時だけにし、技術情報を詳細・診断画面へ移す。保存時刻はUTCのISO 8601のままとする。同一要約・同一分の場合だけ秒、なお一致する場合だけ小数秒へ拡張する。`presentationSummary`とlegacy `presentationTitle`のeffective summary解決規則を読込・書込・再索引で統一し、保存値を変更せず、20 Character超過時だけ表示を19 Character＋`…`へ短縮する。version 1／2／3 readerをwriterより先に提供する。
-2. 解析成功後の状態競合修正。`operationId`をJob作成時にUUIDで確定して実行前に永続化し、Analysis保存・Summary保存・親Manifest更新を`AnalysisStore`へ集約する。SQLite migration、Bundle検証、legacy nullを除く部分一意索引の順で導入し、検証後だけ新規writerを有効化する。保存前失敗、保存後の状態同期失敗、保存物の整合性失敗を分離する。`completion_sync_pending`は起動時復旧対象として試行開始前に回数を永続化し、5秒・30秒・5分の最大3回で再同期、3回失敗後は`completion_sync_failed`とする。部分保存・破損は`analysis_integrity_failed`で自動処理を止める。
-3. Transcript訂正とRevision再生成。role別生Transcriptを`rawTranscriptRefs`として不変保持し、確定済みの`mergeAlgorithmVersion: 1`で統合する。訂正位置は固定snapshot上のUTF-8 byte半開区間とし、`transcriptTransformSteps`へ変換順序と入出力hashを保存する。訂正を不変Sourceとして追加し、訂正版snapshotを持つRevisionからSummaryとActionsを再生成する。`operationId`で収束させ、`requestFingerprint`を監査用に保存する。
-4. 共通／Group辞書。ユーザー確認を必須とする辞書登録、追加専用の辞書Revision、`dictionaryRevisionRefs`によるsnapshot固定、削除後も過去Analysisを再現できる保存を実装する。同時適用は共通辞書＋明示選択した1つのGroup辞書までとする。
-5. 決定的な文字起こし後補正。`normalizationAlgorithmVersion: 1`の完全一致規則を実装し、補正前Transcript、適用位置、`dictionaryRevisionRefs`、未適用項目と理由を保存する。
-6. Whisper用語ヒント。PoCで方式、語数上限、改善効果を確認してから有効化する。未検証のヒントを自動適用せず、段階1〜5の実装をこのPoC待ちにしない。
+1. v0.3.4: Analysis詳細の段階読込。選択直後はタイトルとActionsだけを軽量な表示投影から表示し、Markdown、Revision、追加情報、根拠Source、媒体・Transcriptを自動読込しない。「詳細を表示」を押した対象だけをバックグラウンドで読込み、対象IDと選択世代を照合して古い結果を破棄する。読込中・失敗時もInputと一覧操作を止めず、永続schema・保存本文・来歴を変更しない。
+2. Analysis一覧のJST日時表示と簡素化。一覧を具体的な約10〜20 Characterの要約とJST日時だけにし、技術情報を詳細・診断画面へ移す。保存時刻はUTCのISO 8601のままとする。同一要約・同一分の場合だけ秒、なお一致する場合だけ小数秒へ拡張する。`presentationSummary`とlegacy `presentationTitle`のeffective summary解決規則を読込・書込・再索引で統一し、保存値を変更せず、20 Character超過時だけ表示を19 Character＋`…`へ短縮する。version 1／2／3 readerをwriterより先に提供する。
+3. 解析成功後の状態競合修正。`operationId`をJob作成時にUUIDで確定して実行前に永続化し、Analysis保存・Summary保存・親Manifest更新を`AnalysisStore`へ集約する。SQLite migration、Bundle検証、legacy nullを除く部分一意索引の順で導入し、検証後だけ新規writerを有効化する。保存前失敗、保存後の状態同期失敗、保存物の整合性失敗を分離する。`completion_sync_pending`は起動時復旧対象として試行開始前に回数を永続化し、5秒・30秒・5分の最大3回で再同期、3回失敗後は`completion_sync_failed`とする。部分保存・破損は`analysis_integrity_failed`で自動処理を止める。
+4. Transcript訂正とRevision再生成。role別生Transcriptを`rawTranscriptRefs`として不変保持し、確定済みの`mergeAlgorithmVersion: 1`で統合する。訂正位置は固定snapshot上のUTF-8 byte半開区間とし、`transcriptTransformSteps`へ変換順序と入出力hashを保存する。訂正を不変Sourceとして追加し、訂正版snapshotを持つRevisionからSummaryとActionsを再生成する。`operationId`で収束させ、`requestFingerprint`を監査用に保存する。
+5. 共通／Group辞書。ユーザー確認を必須とする辞書登録、追加専用の辞書Revision、`dictionaryRevisionRefs`によるsnapshot固定、削除後も過去Analysisを再現できる保存を実装する。同時適用は共通辞書＋明示選択した1つのGroup辞書までとする。
+6. 決定的な文字起こし後補正。`normalizationAlgorithmVersion: 1`の完全一致規則を実装し、補正前Transcript、適用位置、`dictionaryRevisionRefs`、未適用項目と理由を保存する。
+7. Whisper用語ヒント。PoCで方式、語数上限、改善効果を確認してから有効化する。未検証のヒントを自動適用せず、段階1〜6の実装をこのPoC待ちにしない。
 
 詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)、[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を参照する。
 

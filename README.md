@@ -27,6 +27,7 @@ Contextoryは、PMが見た画面と聞いた会話をローカルに収集し�
 - 常駐メニューはInput専用、将来のタスク整理画面は確認・補足・関連付け・再解析専用とし、相互の操作を混在させない。
 - 将来のExcel、PowerPoint、Jira、Backlog、Slack出力は確認済み文脈から生成する。
 - Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。要約は保存値を変えず、20 Character超過時だけ表示を19 Characterと`…`へ短縮する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面で確認する。保存時刻はUTCのISO 8601を正本とし、表示時だけAsia/Tokyoへ変換する（表示例`2026/08/14 10:30`）。
+- Analysis一覧で項目を選択した直後は、タイトルと「あなたの対応」（Actions）だけを軽量に表示する。Markdown、Revision、追加情報、根拠Source、媒体・文字起こしなどの全詳細は「詳細を表示」を押した対象だけへ非同期で遅延読込し、Inputと一覧操作を待たせない（v0.3.4で実装・検証中）。
 - 解析の成否はcanonical Analysis SourceとRevisionの不変Summary snapshotの保存・hash検証で判定する。`operationId`はJob作成時に確定して一意制約付きで索引化し、Analysis保存・Summary保存・親Manifest更新の所有者を1つに集約する。保存後の状態同期失敗は`completion_sync_pending`として起動時復旧の対象とし、試行回数を実行前に永続化して最大3回後は`completion_sync_failed`で手動対応へ切り替える。部分保存・破損は`analysis_integrity_failed`として自動再解析しない（将来実装）。
 - Whisperの生Transcriptはrole別に不変の原本として保持し、ユーザー訂正は不変の訂正Sourceとして追加する。訂正版Transcriptから要約とActionsを再生成し、過去Revisionを保持する。同一操作の収束は`operationId`、監査は`requestFingerprint`で分けて扱う（将来実装）。
 - 共通辞書とGroup／案件別辞書をローカルに保持し、次回録音の用語ヒントと文字起こし後の決定的な表記補正へ使う。同時適用は共通辞書と明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない（将来実装）。

@@ -2,7 +2,7 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。v0.3.1の未参照Source一覧と複数選択破棄は、この文書のv0.3.2安全契約を満たさないため、修正と検証が完了するまで安全な削除導線として扱わない。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
+正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。v0.3.1の未参照Source一覧と複数選択破棄は、この文書のv0.3.2安全契約を満たさないため、修正と検証が完了するまで安全な削除導線として扱わない。v0.3.4では、Analysis選択直後をタイトルとActionsだけの段階表示にする受入仕様を確定し、実装と検証を本サイクルで行う。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
 
 ## Source中心モデル
 
@@ -110,6 +110,26 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 - 保存済みの要約は長さにかかわらず変更・保存拒否されず、20 Character超過時だけ一覧で先頭19 Characterと`…`が表示される。
 - legacy `presentationTitle`を含む全ての値に同じ表示短縮規則を適用し、読込時にManifestを更新しない。
 
+## Analysis詳細の段階読込
+
+Analysis一覧で項目を選択する操作は、Inputの取得・取り込み、一覧の操作、ほかのウィンドウの応答を待たせない。選択直後に全ての詳細ファイルを読むのではなく、初期表示と明示的な詳細読込を分離する。これは表示順序の変更であり、Analysis、Revision、原本、追加情報の正本・来歴・削除保護を変更しない。
+
+- 選択直後の初期表示は、一覧で解決済みのタイトルと、そのAnalysisに対する「あなたの対応」（Actions）だけとする。初期表示に必要な値は軽量な表示投影から取得し、Markdown本文、過去Revision、追加情報、根拠Source、画像・音声・動画、媒体metadata、role別／統合／訂正版Transcriptを展開・走査しない。
+- 初期表示には「詳細を表示」操作を置く。選択だけで全詳細の読込を開始しない。
+- ユーザーが「詳細を表示」を実行した時だけ、その時点で選択中のAnalysisのMarkdown、Revision、追加情報、根拠Source、媒体・Transcriptをバックグラウンドで遅延読込する。既存の詳細表示で確認できる情報は、この操作後も省略・破棄しない。
+- 詳細読込中もタイトルとActions、一覧、Input操作を利用可能なままにする。読込中の状態、失敗、再試行は詳細領域内に表示し、一覧全体やInputをブロックしない。
+- 選択変更、詳細表示の取り消し、ウィンドウ終了後に完了した古い読込結果は、現在の選択・表示要求を上書きしない。対象Analysisと選択世代を照合してから画面へ反映する。
+- 初期表示または遅延読込の失敗は、永続データを変更せず、失敗した領域だけへ表示する。失敗を理由にAnalysisの再解析、Revision再生成、Source削除を自動実行しない。
+
+### 受入条件
+
+- 大きなMarkdown、複数Revision、追加情報、媒体またはTranscriptを持つAnalysisでも、一覧項目の選択直後にタイトルとActionsの初期表示へ遷移し、全詳細の走査完了を待たない。
+- 初期表示中にMarkdown本文、過去Revision、追加情報、根拠Source、画像・音声・動画、媒体metadata、Transcriptの内容が表示・読込対象にならず、「詳細を表示」を実行した対象だけが遅延読込される。
+- 「詳細を表示」後は、従来のMarkdown、Revision、追加情報、根拠Source、媒体・Transcriptの詳細を確認できる。
+- 詳細読込中に別のAnalysisを選択しても、前のAnalysisの完了結果や失敗表示が新しい選択へ混入しない。
+- 詳細読込の実行中・失敗時も、一覧の再選択とInput取得・取り込みを継続できる。
+- この表示最適化でSource／Analysis／Revisionの永続schema、保存済み本文、来歴、保護ロック、削除規則を変更しない。
+
 ## 解析完了判定と状態表示
 
 実利用で、Claude解析とAnalysis保存が成功しているのに「自動解析失敗」と表示される事象を確認した。原因は解析結果の保存後に行う親Manifestの完了更新であり、解析そのものの失敗ではない。解析の成否は、解析結果の保存が完了したかどうかで判定する。
@@ -164,7 +184,7 @@ Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表
 
 ## Actionsの強調とTask化
 
-Analysis Source詳細の上部には「あなたの対応」を大きく表示し、Summary本文とは別にActionを表示する。ActionはAIの提案であり、確認前に完了・確定として扱わない。
+Analysis Source詳細の上部には「あなたの対応」を大きく表示し、Summary本文とは別にActionを表示する。段階読込では、タイトルとともにこの領域を初期表示し、Markdown本文その他の詳細は「詳細を表示」後に読む。ActionはAIの提案であり、確認前に完了・確定として扱わない。
 
 - Summaryの構造化出力からActionだけを独立抽出し、自分の対応、他者への依頼、返答待ちを区別する。
 - Actionは内容、種別、期限候補、状態、根拠Source ID、抽出元Revision ID、確認状態を持つ。

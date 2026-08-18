@@ -59,7 +59,7 @@ MVPは開発者本人が私用Macで開発・ビルドし、私用Macと会社Ma
 - 最低1日1回のレビュー導線と通知。
 - Sourceへの補足、複数Sourceの関連付け、解析目的を変えた再解析、AI結果の詳細確認。
 - Analysis一覧の具体的要約・JST日時表示、Action管理。
-- Transcript訂正と用語辞書のUI。生Transcriptの原本保持、訂正Source、辞書Revision、決定的補正は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)で設計する。
+- Transcript訂正、用語辞書、専用の高精度再文字起こしはRetiredとし、MVPや別スコープへ追加しない。App撤去と検証が終わるまでは[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)を履歴として保持する。
 - Jira、Confluence、Backlogへの外部公開Adapter。AI生成後の本文・Project／Space・種別・添付の承認と、資格情報・重複作成防止を含めて別Phaseで設計する。
 - タスク整理画面からの新規Input操作。
 
@@ -99,4 +99,4 @@ MVPは開発者本人が私用Macで開発・ビルドし、私用Macと会社Ma
 - 録音忘れ防止からの自動録音。
 - クラウド同期。
 - Microsoft 365 Copilot連携。会社テナント側のAPI・エージェント許可が必要なためMVPでは保留する。
-- Whisperモデル自体の学習・fine-tuning。誤変換対策は訂正Sourceと用語辞書による用語ヒント・決定的補正で行う。
+- Whisperモデル自体の学習・fine-tuning。訂正Source、用語辞書、用語ヒント、決定的補正もRetiredであり、通常の文字起こしへ追加しない。

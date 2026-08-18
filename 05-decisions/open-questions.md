@@ -69,8 +69,7 @@ Phase 0で、GitHub Releaseによる受け渡し、SHA-256照合、ad-hoc署名�
 - 一覧のJST表示粒度と同一要約・同一分の識別: 既定は分単位、一致集合だけ秒、なお一致する場合だけ小数秒へ拡張する。詳細は[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)。
 - `completion_sync_pending`の再同期契機、上限回数、診断: 起動時復旧対象とし、各試行の開始前に回数を永続化する。5秒・30秒・5分の最大3回、以後は`completion_sync_failed`で自動停止し診断と手動再同期を提供する。部分保存・破損は`analysis_integrity_failed`へ分離する。詳細は同要件と[データモデル](../03-design/data-model.md)。
 - `presentationSummary`とlegacy `presentationTitle`の移行: 新規書き込みは新フィールドのみ、読込は固定の優先順位、legacy値を削除せずbackfillしない。
-- Group辞書の適用範囲: MVPは共通辞書＋ユーザーが明示選択した1つのGroup辞書までとし、複数Group所属時も自動選択しない。詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)と[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)。
-- 辞書Revisionの粒度と過去Analysisの再現: scope単位のRevision snapshotを`dictionaryRevisionRefs`（`scope`、`scopeId`、`revisionId`、`snapshotPath`、`snapshotSha256`）として固定参照する。
+- Transcript訂正・用語辞書・専用再文字起こしに関する過去の決定はRetiredであり、通常のSource／Revision／Queueモデルへ追加しない。撤去実装と検証が完了するまで、履歴仕様として[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)と[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を保持する。
 - 同一操作の収束条件: `operationId`をidempotency keyとし、`requestFingerprint`は監査用に分離する。fingerprint一致だけで別operationを統合しない。
 - schema切替順: version 3 Source／version 2 Revisionはversion 1／2／3 reader、SQLite nullable列・新規テーブル、Bundle検証、legacy nullを除く部分一意索引、検証後の新規writer有効化の順とする。`stagedInputRefs`を持つAnalysis Revision version 3もversion 1／2／3 reader、再構築可能なSQLite索引、Bundle内snapshotと参照hashの検証をwriterより先に提供する。External Ticket Source version 4はversion 1〜4 reader、SQLite migration、Bundle／snapshot検証、再索引、version 4 writerの別migrationとする。旧Bundleを一括backfillしない。
 - Transcript訂正位置: 固定snapshot上のUTF-8 byte半開区間を使い、scalar境界、訂正前byte列、非重複を検証する。別モデルのTranscriptへ自動追従させない。

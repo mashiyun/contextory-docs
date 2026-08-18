@@ -2,7 +2,7 @@
 
 ## Status
 
-未実装の将来仕様。正規Sourceモデル（[ADR-009](../06-adr/ADR-009-analysis-source-revisions.md)）とローカル前処理（[ADR-008](../06-adr/ADR-008-local-media-preprocessing.md)）の上に追加する。判断は[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)に従う。
+Retired。これは採用しない将来仕様の履歴であり、通常のSource／Revisionモデルへ追加しない。対応するAppの削除と検証は進行中であり、完了するまで既存データを破棄・変換したとは扱わない。通常の音声原本保持とローカル文字起こしは[ADR-005](../06-adr/ADR-005-separate-system-and-microphone-audio.md)および[ADR-008](../06-adr/ADR-008-local-media-preprocessing.md)に従い継続する。
 
 ## 目的
 

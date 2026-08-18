@@ -28,8 +28,7 @@ Capture / Audio Recording / Screen Recording
 - Local Vault: 原本、Markdown、派生物の保存。
 - Processing Pipeline: 文字起こし、要約、Markdown生成、関連判定。
 - Media Preprocessor: PCM変換、ローカルWhisper文字起こし、AVFoundationによる動画代表フレーム抽出。成果物がない場合はAI解析へ進めない。生Transcriptは不変の原本として保持する。
-- Transcript Correction: 生Transcriptを上書きせず、ユーザー訂正を不変の訂正Sourceとして追加し、訂正版Transcript snapshotをAnalysis Revisionへ保存する境界。
-- Terminology Dictionary: 共通辞書とGroup／案件別辞書をローカル保持し、次回録音の用語ヒントと、文字起こし後の決定的な表記補正へ使う境界。辞書登録はユーザー確認を必須とし、Whisperモデル自体の学習・fine-tuningは行わない。MVPで同時適用できるのは共通辞書とユーザーが明示選択した1つのGroup辞書までとし、適用内容を`dictionaryRevisionRefs`として固定する。
+- Transcript Correction／Terminology Dictionary／専用高精度再文字起こし: Retired。App撤去と検証が完了するまで履歴仕様を保持するが、通常の処理境界には追加しない。
 - URL Sanitizer: 画像、`provided-text`、ユーザー入力から抽出して保存・表示・送信するURLのquery／fragmentを除去する。画像からのURL抽出は任意で送信の前提にせず、`localOpenUrl`をClaudeへ渡さない。
 - AI Adapter: 会社契約のClaude Codeを、ユーザーがSource単位で確認した業務情報の許可済み処理境界とする。個人Claudeへは送信しない。
 - AI Staging: 初回解析、Revision再分析、AI対話、Group展開の全実行で、選択済みの未マスク原画像・テキスト・PDF・安全化済みURL・固定済み文字起こし・代表フレームだけをSource Bundle外の一時ディレクトリへ複製し、Claudeのcwdにする。Source Bundleをcwdまたは`--add-dir`として公開せず、音声・動画原本と`localOpenUrl`は配置しない。
@@ -39,7 +38,7 @@ Capture / Audio Recording / Screen Recording
 - AI Invocation Audit: 初回解析を含む各Revisionの`stagedInputRefs`へ送信時点の入力所有Source、Revision、`contentRole`、`inputType`、元path、staging論理path、staged bytesと原ファイルのhash、MIME `contentType`、transformation／versionを固定し、Group展開結果、モデル、prompt schema、結果状態と結び付ける。Revisionを作らないAI対話／Group展開にも同じ配列を追加専用のauditとして残し、一時stagingは正本にしない。
 - Recording Reminder: Slack／Teamsの前面化をローカルで検知し、録音開始をユーザーへ確認する。会議・マイク・画面内容の精密検知や自動録音は行わない。
 - Recording Input Monitor: 選択中マイク名と開始前／録音中の入力レベルを表示し、マイク音声とシステム音声を別々に監視する。無音・切断候補は警告のみで、自動停止・無断のデバイス切替を行わない。
-- Source Trash: Addition画像Source、明示追加context Source、`stagedInputRefs`を含む実利用参照を確認し、1回の明示確認後にBundleをmacOSのゴミ箱へ移動する危険操作境界。親Sourceの追加専用`analysisCompletions`は完了監査であり、Analysis Source削除のlive参照には数えず、削除後も親Sourceに残す。既存Manifestの`protection`は読み取り互換とtransaction内部復旧にだけ保持し、ユーザーへロック解除を求めない。未参照候補は検証済みcanonical `kind: input` Sourceだけに限定し、Analysisを含む派生・legacy・種別不明Sourceを候補にしない。削除transactionの復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離する。隔離中は削除導線だけをfail-closedにし、有効なSource／Analysisの索引化・閲覧は継続する。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
+- Source Trash: Addition画像Source、明示追加したSource、`stagedInputRefs`を含む実利用参照を確認し、1回の明示確認後にcanonical Source BundleをmacOSのゴミ箱へ移動する危険操作境界。親Sourceの追加専用`analysisCompletions`は完了監査であり、Analysis Source削除のlive参照には数えず、削除後も親Sourceに残す。`protection`、恒久ロック、ロック解除、backfillはSource Manifestにも削除transactionにも持たない。未参照候補は検証済みcanonical `kind: input` Sourceだけに限定し、Analysisを含む派生・種別不明Sourceを候補にしない。削除transactionの復旧を再索引・サイドバー集計・一覧走査より先に有効recordだけ完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離する。中断・失敗時は検証済みcanonical Source Bundleを元の所有pathへ復元し、復元不能・状態不明時だけ削除導線をfail-closedにする。有効なSource／Analysisの索引化・閲覧は継続する。走査不能、欠損、hash不一致ではfail-closedとし、cascade deleteを行わない。SQLiteは再構築可能な索引に限定する。
 - Task Management: Task Bundleを手動作業管理の正本とし、Source／Group多対多、不変コメント・blockerと追加専用event、返答待ち、Task親子・依存を管理する境界。現在値とeventは同じ`task.json`へatomicに保存し、WBSはGroupにリンクされたTaskの投影として専用正本を作らない。
 - PM Support Views: Source／Group／Taskからデイリーブリーフィング、Decision Log、RAID等を導出する表示境界。カードは根拠への参照を持つ再生成可能なcacheに限り、ユーザー確定値はSourceまたはTaskへ保存して重複した管理正本を持たない。
 - External Output Adapter: 承認時に固定した内容だけをJira、Confluence、Backlogの各Adapterへ変換・公開する境界。送信識別子と結果を保存して重複作成を防ぎ、資格情報はアプリ内部でmacOS Keychainからだけ解決し、設定、Vault、URL query、プロセス、環境、診断、クラッシュ情報、HTTPデバッグ出力へ出さない。
@@ -87,30 +86,17 @@ Contextory Vault/
 │                   ├── media/
 │                   │   └── <speech-model>/
 │                   │       ├── transcript-<role>.md            # role別の不変な生Transcript
-│                   │       ├── transcript-combined.md          # role別を統合した不変snapshot
-│                   │       ├── transcript-<role>-normalized.md # 辞書補正後
-│                   │       └── normalization.json              # 補正履歴
+│                   │       └── transcript-combined.md          # 必要時のみrole別を統合した不変snapshot
 │                   └── analysis/
 │                       ├── revisions/
 │                       │   └── <revision-id>/
 │                       │       ├── revision.json
 │                       │       ├── inputs/                  # 非Source・可変派生物の不変input snapshot
-│                       │       ├── transcript-corrected.md  # 訂正版の不変snapshot
 │                       │       └── summary.md               # 不変snapshot
 │                       ├── conversations/
 │                       ├── audits/
 │                       └── summary.md          # 最新Revisionからのmaterialized view
-├── contexts/             # 既存Context Bundleの読み取り互換専用。新規書き込みしない。
-├── analyses/             # 既存Analysis Bundleの読み取り互換専用。新規書き込みしない。
-├── dictionaries/
-│   ├── common/
-│   │   ├── terminology.json      # 最新辞書Revisionの投影
-│   │   └── revisions/
-│   │       └── <dictionary-revision-id>.json
-│   └── groups/
-│       └── <group-id>/
-│           ├── terminology.json
-│           └── revisions/
+├── analyses/             # 一回限りのAnalysis importer入力。通常Readerは走査しない。
 ├── groups/
 │   └── <group-id>/
 │       └── group.json
@@ -127,7 +113,7 @@ Contextory Vault/
 - 外部サービスから取り込んだ原文とユーザー補足は、AI生成物および原本と分離する。
 - Source BundleをProject／Taskフォルダへ物理移動しない。複数Project／Taskとの関連はメタデータで表現する。
 - GroupはSource IDだけを参照し、同じSourceを複数Groupへ再利用できる。Groupへの追加は生成を起動しない。
-- Analysisは`kind: analysis`の派生Sourceである。既存Contextと`analyses/`は移行期間の読み取り互換表現とし、新規書き込み先ではない。
+- Analysisは`kind: analysis`の派生Sourceであり、通常の起動・一覧・Input処理はcanonical Source Bundleだけを読む。既存`analyses/`はアップデート時の一回限りの変換入力であり、変換完了marker後に通常Reader・索引再構築の対象にしない。`contexts/`と旧Task Bundleは非対応形式であり、通常Readerにも変換対象にも入れない。新規書き込み先ではない。
 - Analysisを全件表示するサイドバーは「Analysis」と表示する。「未確認Analysis」は確認待ち状態だけへ検証可能に絞った投影に限定し、全件表示の別名として使わない。
 - Topic Sourceは`kind: topic`、`type: topic_excerpt`の派生Sourceである。snapshot所有Source、原音所有Source、nullableな親Revision、`system`／`microphone`等の単一role別Evidence Span、不変snapshotと選択byte列のhash、時刻／byte半開区間を保存し、原本／Transcriptを複製せず原音Sourceの該当時刻を再生する。親更新でspanを自動追従させず、Topic／Task／Group／Revision／派生Source／公開監査から参照される親Sourceは削除しない。
 - External Ticket Sourceは`kind: input`、`type: external_ticket_snapshot`の不変Inputである。provider、providerが保証する不変instance ID（なければ正規化endpoint）、不変issue ID、必要時だけproject不変IDからremote keyを確定し、endpointと変更可能なissue／project keyは表示aliasとする。remote version、取得scope、snapshot hash、operation IDで更新系列を検証し、変更時だけ一意な系列tipを参照する新Sourceを作る。不変IDを検証できない手動Sourceは`unconfirmed`のまま独立保存する。Read Adapterは公開Adapterとinterface、Job、資格情報を分け、外部ticketを変更しない。
@@ -135,17 +121,16 @@ Contextory Vault/
 - `summary.md`は最新Revisionの閲覧用投影であり、Revisionと対話履歴から再生成できる。
 - Analysisの一覧表示用の具体的要約、Action、外部公開記録は、SourceとRevisionの来歴を参照する構造化メタデータとして保存する。
 - 各Revisionは`summaryPath`とSHA-256を伴うsummary本文の不変snapshotを持つ。snapshotがないRevisionは有効なRevisionとして扱わない。
-- Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列とSQLiteはlegacy cacheまたは再構築可能な索引である。
+- Task–Source／Task–Groupは各Task Bundleの`task.json`、Group–Sourceは各Group Bundleの`group.json`を唯一の正本とする。Source Manifestの逆方向ID配列は関係解決に使わず、SQLiteは再構築可能な索引である。
 - Taskは手動作成・編集可能で、タイトル、説明、状態、優先度、担当、予定／実績日、進捗、milestone、確認状態、作成元、`parentTaskId`、表示順、依存を持つ。コメントとblockerは追加専用とし、返答待ちは実作業状態と別に表現する。ユーザー確定値をAIが上書きしない。
 - `manifest.json`は機械可読な永続メタデータを持つ。
-- Sourceの保護状態はManifestを正本とし、欠落・不正・未知値を`locked`として扱う。SQLiteの保護状態はBundle走査から再構築する。
-- 生Transcriptは`system`と`microphone`のrole別に、不変の原本として`derived/media/<speech-model>/`へ保持する。統合snapshot、辞書補正結果、訂正版snapshotは別ファイルとして保存し、生Transcriptを上書きしない。
-- 用語辞書は`dictionaries/`へ共通・Group別に保持し、追加専用のRevisionとして更新する。過去Revisionと補正履歴を保持して過去Analysisの再現性を維持する。
+- Sourceの削除可否はManifestの保護状態ではなく、実利用参照の整合性と1回の明示確認で決める。SQLiteは削除可否の正本を持たない。
+- 生Transcriptは`system`と`microphone`のrole別に、不変の原本として`derived/media/<speech-model>/`へ保持する。必要な統合snapshotも別ファイルとし、生Transcriptを上書きしない。訂正・辞書・専用再文字起こしの派生物はRetiredである。
 - 保存する時刻はUTCのISO 8601を正本とし、表示時にだけAsia/Tokyoへ変換する。
 - MarkdownはユーザーとClaude Codeが確認・再利用できる成果物とする。
 - SQLiteは検索、関連、処理状態、再試行、レビューキュー用のローカル索引とする。
 - SQLiteの永続情報は可能な限りSource Bundleから再構築可能にする。
-- 実行待ち、処理中、ロック、再試行回数などの一時的な運用状態はSQLiteのみで保持できる。
+- 実行待ち、処理中、削除transaction中、再試行回数などの一時的な運用状態はSQLiteのみで保持できる。
 - Claude実行用のstaging directoryはLocal VaultのBundle外にジョブ単位で作る一時領域であり、`jobId`、`operationId`、`createdAt`を持つ。永続化・バックアップ・Git管理せず、Claudeのcwdに固定する。処理完了、失敗、タイムアウト、中断後に削除し、次回起動時には実行中Jobへ属さない残存stagingをすべて回収する。
 
 詳細と判断理由は[ADR-001](../06-adr/ADR-001-local-vault-storage.md)を参照する。
@@ -177,7 +162,7 @@ Contextory Vault/
 
 ## AI処理とフォールバック
 
-- ユーザーが明示的に取得・取り込みした通常Input Sourceは保存後にClaude Code分析を自動開始する。来歴用の`type: transcript_correction` Sourceはこの自動解析Queueから除外し、親Analysisの明示的な再生成Jobだけが参照する。
+- ユーザーが明示的に取得・取り込みした通常Input Sourceは保存後にClaude Code分析を自動開始する。Transcript訂正、用語辞書、専用の高精度再文字起こしはRetiredであり、Input QueueやAnalysis再生成Jobへ追加しない。通常の音声原本保持とローカル文字起こしは継続する。
 - Input取得状態とAI解析状態を分離し、Claude解析中も新しいInputを保存してQueueへ追加できるようにする。
 - Claude Code処理は同時実行せず1件ずつ直列処理し、待機件数を常駐メニューへ表示する。
 - `pending_analysis`／`analyzing`のSourceと、`completion_sync_pending`のProcessing Jobは起動時に永続状態から古い順で復元する。`completion_sync_pending`は解析Queueではなく状態再同期の対象としてSQLiteから復元する。
@@ -201,7 +186,6 @@ Contextory Vault/
 - 復旧した`pending_analysis`／`analyzing` JobもClaude実行前に`operationId`でAnalysisを確認する。成功境界を満たすAnalysisがあれば再生成せず、親Manifestが同じ`operationId`の完了状態を示すか、`AnalysisStore`による更新が成功した場合だけJobを`completed`へ収束させる。更新できなければ`completion_sync_pending`とする。同じ`operationId`のAnalysis Sourceが存在するのに成功境界を満たさない場合は`analysis_integrity_failed`として停止し、Claudeを再実行しない。
 - 解析結果の保存前に発生した失敗は`analysis_failed`／`retry_waiting`とし、保存後の状態同期失敗は`completion_sync_pending`として別表示にする。「自動解析失敗」はClaude解析またはAnalysis保存が実際に失敗した場合だけ表示する。
 - `completion_sync_pending`／`completion_sync_failed`はProcessing JobのSQLite運用状態を正本とし、Source表示はJobとの対応から導出する。再同期ではcanonical Analysis Source Manifest、最新Revision record、不変Summary snapshot、`operationId`、SHA-256を検証し、完成済みならAnalysisを再生成せず親ManifestとJobだけを同期する。Analysis Sourceが存在するのに他の検証が失敗した場合は`analysis_integrity_failed`としてfail-closedで停止し、自動再解析・上書き・削除を行わない。Jobは`syncAttemptCount`、`lastSyncAttemptAt`、`nextRetryAt`、`lastSyncError`を持ち、各試行の開始前にSQLite transactionで試行回数と時刻を永続化する。自動再同期は5秒、30秒、5分の最大3回とし、3回失敗後は`completion_sync_failed`として自動処理を止め、診断表示と手動再同期を提供する。
-- Transcript訂正による再解析では、訂正版Transcript、適用済み辞書項目だけの派生excerpt、ユーザーが選択した代表フレーム・画像・テキスト・安全化済みURLをstagingへ置く。excerpt正本はRevision監査領域へ不変保存してpathとSHA-256を記録し、stagingにはcopyだけを置く。辞書Revision snapshot全体はユーザーが明示選択しない限り置かず、音声・動画原本は渡さない。この限定は訂正再解析の規則であり、初回メディア解析はADR-008、staging境界全体はADR-012を正本とする。
 - 各工程をProcessing Jobとして分離し、途中失敗から再開できるようにする。
 - 認証切れ、タイムアウト、不正な出力、アプリ終了などを失敗状態として残す。
 - 処理に失敗してもSource Bundleを保持し、ユーザーが手動で再実行できるようにする。
@@ -232,7 +216,7 @@ Contextory Vault/
 - Analysis一覧は、内容が分かる具体的な要約とJST日時だけを表示する。Analysis表記、分類、状態、hash、Source IDは一覧へ出さず、詳細画面と診断画面で確認する。要約未生成時はSource種別とJST日時で暫定表示する。要約の根拠・確認状態を保存し、ユーザー確定の要約をAIが上書きしない。
 - 一覧の日時は既定で分単位とし、表示要約とJST分が一致する集合だけを秒、なお一致する場合だけ小数秒まで拡張する。比較と拡張判定はlocale非依存で決定的に行い、行の内部識別に使うSource IDは表示しない。
 - 一覧の表示要約は、ユーザー確認済み`presentationSummary`、ユーザー確認済みlegacy `presentationTitle`、`presentationSummary`、legacy `presentationTitle`、種別と日時のfallbackの順に解決する。保存値は読込時に削除・backfillせず、表示時だけ実装言語の`Character`単位で20 Characterを超える値を19 Character＋`…`へ短縮する。
-- Analysis詳細では、role別の生Transcript、統合Transcript、辞書補正後Transcript、現在の訂正版、訂正履歴、過去Summaryを確認できる。訂正版からSummaryとActionsを再生成し、過去Revisionを保持する。
+- Analysis詳細では、role別の生Transcript、必要な統合Transcript、過去Summaryを確認できる。Retiredな訂正・辞書データの表示と再生成は通常機能に含めない。
 - Analysis詳細の上部に「あなたの対応」を置き、自分の対応、他者への依頼、返答待ちをSummary本文と独立して表示する。Actionがない場合は所定の空状態を表示し、確認済みActionからTaskを作成できる設計にする。
 - Analysisを選択した直後は、タイトルと「あなたの対応」だけを軽量な表示投影から表示し、Markdown、Revision、追加情報、根拠Source、媒体・Transcriptの詳細を自動読込しない。「詳細を表示」を押した対象だけをバックグラウンドで遅延読込し、読込中・失敗・再試行は詳細領域へ限定して示す。選択変更後の古い結果は対象IDと選択世代の照合で破棄し、Inputと一覧操作をブロックしない。
 - Markdown派生Output Sourceは外部公開前に、本文、Project／Space、種別、添付をユーザーが確認・承認する。承認時にはpublication ID、公開先、Project／Space、変換後payload、本文snapshot、添付一覧と各SHA-256、承認日時を固定し、変更時は再承認する。送信前にattempt ID、idempotency key、request fingerprintを保存し、remote ID、照合結果、outcomeを保存する。添付はhash、送信状態、remote attachment ID単位で失敗分だけを再実行し、結果不明の新規作成は自動再試行しない。

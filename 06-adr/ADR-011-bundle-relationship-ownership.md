@@ -14,7 +14,7 @@ TaskとSource／Group、GroupとSourceはいずれも多対多である。両側
 - `task.json`は`sourceLinks`と`groupLinks`を持ち、各linkに相手ID、role、追加日時を保存する。
 - Group–Source関係の唯一の正本は各Group Bundleの`group.json`とする。
 - `group.json`は`sourceLinks`を持ち、各linkにSource ID、role、追加日時を保存する。
-- Source Manifestの`taskIds`と`groupIds`は既存データを読むためのlegacy cacheとし、新規更新しない。
+- Source Manifestの`taskIds`と`groupIds`は関係の正本・通常Readerに使わない。関係は`task.json`と`group.json`だけから解決し、旧配列を持つManifestは次のcanonical書き込みで除去できる。
 - SQLiteの`task_sources`、`task_groups`、`group_sources`は索引とし、Bundle走査で再構築する。関係の変更で逆方向BundleやSQLiteを正本として同期更新しない。
 
 ## Consequences
@@ -28,4 +28,4 @@ TaskとSource／Group、GroupとSourceはいずれも多対多である。両側
 ### Negative
 
 - Source詳細で逆方向のTask／Groupを表示するにはSQLite索引またはBundle走査が必要になる。
-- 既存Manifestのlegacy cacheが正規Bundleと食い違う場合、legacy cacheを正規化せず警告・再索引対象として扱う必要がある。
+- 旧配列を持つ既存Manifestを読んでも関係へ反映しない。`task.json`または`group.json`を検証できない場合は参照解決をfail-closedにする。

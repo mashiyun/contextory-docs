@@ -9,29 +9,25 @@
 3. Task–Source／Group紐付け
 4. Task手動追加・編集・コメント
 5. 汎用Revision・追加情報
-6. Transcript訂正・用語辞書
-7. Topic Source・話題分割
-8. Topic SourceからTask作成
-9. 返答待ち・blocker
-10. デイリーブリーフィング
-11. WBS親子・依存関係
-12. AI相談
-13. Decision Log／RAID
-14. 派生Output・外部公開
+6. Topic Source・話題分割
+7. Topic SourceからTask作成
+8. 返答待ち・blocker
+9. デイリーブリーフィング
+10. WBS親子・依存関係
+11. AI相談
+12. Decision Log／RAID
+13. 派生Output・外部公開
 
 ## 実環境フィードバック反映の実装順
 
-実利用で確認した不具合と、音声文字起こしの訂正・用語辞書は、次の順で実装する。前段の永続化・検証条件を満たすまで後続を開始しない。
+実利用で確認した不具合は、次の順で実装する。前段の永続化・検証条件を満たすまで後続を開始しない。
 
 1. v0.3.4: Analysis詳細の段階読込。選択直後はタイトルとActionsだけを軽量な表示投影から表示し、Markdown、Revision、追加情報、根拠Source、媒体・Transcriptを自動読込しない。「詳細を表示」を押した対象だけをバックグラウンドで読込み、対象IDと選択世代を照合して古い結果を破棄する。読込中・失敗時もInputと一覧操作を止めず、永続schema・保存本文・来歴を変更しない。
 2. Analysis一覧のJST日時表示と簡素化。一覧を具体的な約10〜20 Characterの要約とJST日時だけにし、技術情報を詳細・診断画面へ移す。保存時刻はUTCのISO 8601のままとする。同一要約・同一分の場合だけ秒、なお一致する場合だけ小数秒へ拡張する。`presentationSummary`とlegacy `presentationTitle`のeffective summary解決規則を読込・書込・再索引で統一し、保存値を変更せず、20 Character超過時だけ表示を19 Character＋`…`へ短縮する。version 1／2／3 readerをwriterより先に提供する。
 3. 解析成功後の状態競合修正。`operationId`をJob作成時にUUIDで確定して実行前に永続化し、Analysis保存・Summary保存・親Manifest更新を`AnalysisStore`へ集約する。SQLite migration、Bundle検証、legacy nullを除く部分一意索引の順で導入し、検証後だけ新規writerを有効化する。保存前失敗、保存後の状態同期失敗、保存物の整合性失敗を分離する。`completion_sync_pending`は起動時復旧対象として試行開始前に回数を永続化し、5秒・30秒・5分の最大3回で再同期、3回失敗後は`completion_sync_failed`とする。部分保存・破損は`analysis_integrity_failed`で自動処理を止める。
-4. Transcript訂正とRevision再生成。role別生Transcriptを`rawTranscriptRefs`として不変保持し、確定済みの`mergeAlgorithmVersion: 1`で統合する。訂正位置は固定snapshot上のUTF-8 byte半開区間とし、`transcriptTransformSteps`へ変換順序と入出力hashを保存する。訂正を不変Sourceとして追加し、訂正版snapshotを持つRevisionからSummaryとActionsを再生成する。`operationId`で収束させ、`requestFingerprint`を監査用に保存する。
-5. 共通／Group辞書。ユーザー確認を必須とする辞書登録、追加専用の辞書Revision、`dictionaryRevisionRefs`によるsnapshot固定、削除後も過去Analysisを再現できる保存を実装する。同時適用は共通辞書＋明示選択した1つのGroup辞書までとする。
-6. 決定的な文字起こし後補正。`normalizationAlgorithmVersion: 1`の完全一致規則を実装し、補正前Transcript、適用位置、`dictionaryRevisionRefs`、未適用項目と理由を保存する。
-7. Whisper用語ヒント。PoCで方式、語数上限、改善効果を確認してから有効化する。未検証のヒントを自動適用せず、段階1〜6の実装をこのPoC待ちにしない。
+4. canonicalモデル統合。旧Analysisは一回限りのimporterでcanonical SourceとRevision 1へ変換し、検証後にFinderのゴミ箱へ移動する。ゴミ箱移動に失敗した場合は元の所有pathへ残してAnalysis writerを停止する。旧Context、旧Task Bundle、旧Analysis ID索引、旧Bundleを対にした削除は通常経路から撤去する。削除はcanonical Source Bundleだけを対象にし、参照確認、1回確認、回復可能なTrash transactionを維持する。
 
-詳細は[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)、[Source・Group・Task・Output要件](../02-requirements/source-group-task-output.md)、[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を参照する。
+Transcript訂正、用語辞書、用語ヒント、専用の高精度再文字起こしはRetiredである。Appの撤去と検証が完了するまで、[Transcript訂正・用語辞書要件](../02-requirements/transcript-correction-terminology.md)と[ADR-014](../06-adr/ADR-014-transcript-correction-terminology.md)を履歴として保持する。
 
 ## 次のLibrary安全管理実装順
 
@@ -50,17 +46,16 @@ Group実装後は、[Topic Source・Task・WBS・PM支援要件](../02-requireme
 1. Task–Source／Group紐付け
 2. Task手動追加・編集・コメント
 3. 汎用Revision・追加情報
-4. Transcript訂正・用語辞書
-5. Topic Source・話題分割
-6. Topic SourceからTask作成
-7. 返答待ち・blocker
-8. デイリーブリーフィング
-9. WBS親子・依存関係
-10. AI相談
-11. Decision Log／RAID
-12. 派生Output・外部公開
+4. Topic Source・話題分割
+5. Topic SourceからTask作成
+6. 返答待ち・blocker
+7. デイリーブリーフィング
+8. WBS親子・依存関係
+9. AI相談
+10. Decision Log／RAID
+11. 派生Output・外部公開
 
-段階1〜2は`task.json` version 1／2／3 reader、SQLiteのnullable列・新規表、Bundle検証、version 3 writerの順で導入し、旧Taskを一括backfillしない。段階5のTopic writerは、Evidence Spanのsnapshot／hash／時刻／byte境界とSource DAG検証を実装してから有効化する。非Transcript長文のoffset形式が未決の間は固定Transcript snapshotを持つ音声・動画だけを対象とする。複数GroupのWBS表示順は段階9、PMカードの抽出規則は段階8／11の開始ゲートであり、段階1〜7を妨げない。
+段階1〜2はcanonical `task.json` reader、SQLiteの必要な表、Bundle検証、writerの順で導入する。旧Task Bundleは一括backfillせず、推測変換・通常読込を行わない。段階4のTopic writerは、Evidence Spanのsnapshot／hash／時刻／byte境界とSource DAG検証を実装してから有効化する。非Transcript長文のoffset形式が未決の間は固定Transcript snapshotを持つ音声・動画だけを対象とする。複数GroupのWBS表示順は段階8、PMカードの抽出規則は段階7／10の開始ゲートであり、段階1〜6を妨げない。
 
 簡易タイムライン、Markdown／CSV／Excel出力、要件変更・影響分析、ステータスレポート、顧客フィードバック整理、優先順位付け、リリース準備確認、Jira／Backlog同期はこの順の後続とする。工数、原価、リソース配分、複数ユーザー共同編集、権限管理は対象外とする。
 
@@ -137,7 +132,7 @@ Status: 完了（2026-08-11）
 - 基盤実装済み・UIはPhase 4へ移動: 複数Sourceの手動Context関連付けとグループ全体の統合分析。
 - 実装済み: 画像・PDF・テキストの形式制限、Content Type・byte数・SHA-256記録、暗号化・破損PDF拒否。
 - 実装済み: 貼り付けテキスト単体の一次Source登録。
-- 実装済み（互換モデル）: Source／Context／Analysisの分離と、解析目的ごとの追加専用派生結果。
+- 実装中: Source／Group／Analysisのcanonical統合。旧Contextを通常Readerから外し、解析目的ごとの派生結果をcanonical Sourceとして追加保存する。
 - 実装済み: AIによるタスク主分類、タグ、確信度、理由の`proposed`保存。
 - 実装済み: `whisper-cli`のarm64静的ビルド、MITライセンス同梱、会社MacでのHomebrew非依存化。
 - 実装済み: 多言語baseモデルのApplication Support配置、SHA-256検証付き取得、手動配置、削除導線。
@@ -154,9 +149,9 @@ Status: 完了（2026-08-11）
 ## Phase 3: Canonical Source and Grouping Data
 
 - 実装済み: 新規Analysisを`kind: analysis`の正規`sourceId`を持つ派生Sourceとして保存する基盤。Output生成はPhase 5の未実装範囲とする。
-- 実装済み: `analyses/`／`contexts/`の読み取り互換、legacy `analysisId`から`sourceId`への対応、Revision 1 snapshot検証、Bundle走査によるSQLite再索引、新規Analysis書き込みのfail-closed gate。
+- 実装中: 旧`analyses/`を一回限りのimporterとしてcanonical `sourceId`とRevision 1へ変換し、検証後に通常保存域から退避する。旧`contexts/`と旧Task Bundleは通常Readerで扱わない。
 - 実装済み: 新規Analysis staging Jobの復旧要求保存、同一`operationId`の重複防止、未確定の複数Source Analysisを通常Input Queueへ分解しない復旧。
-- 未実装: 既存Analysisへの正規`sourceId`とRevision 1割り当てを実利用Vaultで実行する運用と、Revisionの新規書き込みUI。
+- 未実施: 実利用Vaultでの変換実行。既存Bundleを推測で一括変換・削除しない。Revisionの新規書き込みUIは別途実装する。
 - Groupの作成、名称変更、削除、Source追加・除外、複数Group所属。
 - Groupは関連情報を集めるだけとし、追加時にAnalysisやOutputを自動生成しない。
 - Groupから派生Sourceを生成する前に、実際に使用する個別Sourceを明示・固定する。
@@ -195,10 +190,7 @@ Status: 完了（2026-08-11）
 - Analysis一覧を、内容が分かる具体的な要約とJST日時だけの表示へ簡素化する。Analysis表記、分類、状態、hash、Source IDは詳細・診断画面へ移す。要約の根拠・確認状態・ユーザー修正を保存し、未生成時はSource種別とJST日時で暫定表示する。同一要約・同一分の集合だけ秒、なお一致する場合だけ小数秒まで拡張する。
 - `presentationSummary`を新規書き込み先とし、legacy `presentationTitle`を読み取り互換で残す。effective summaryの優先順位を読込・書込・再索引で統一し、読込時のbackfillと一括更新を行わない。
 - 解析成功後の状態競合修正。Revisionの不変Summary snapshot検証を成功判定とし、`AnalysisStore`を親Manifest更新の唯一の所有者にする。`operationId`の事前確定・一意制約・fail-closed再索引、保存前失敗・`completion_sync_pending`・`analysis_integrity_failed`の分離、起動時復旧、試行前の回数永続化、最大3回の自動再同期、`completion_sync_failed`と手動再同期を実装する。
-- role別生Transcriptを不変原本として保持し、統合snapshotと`mergeAlgorithmVersion`を保存する。ユーザー訂正を不変Sourceとして追加し、訂正版snapshotを持つRevisionからSummaryとActionsを再生成する。role別原文・統合・訂正版・訂正履歴・過去Summaryを詳細画面で確認できるようにする。
-- 共通辞書とGroup／案件別辞書をユーザー確認付きで登録し、追加専用のRevisionで更新する。適用内容を`dictionaryRevisionRefs`として固定し、同時適用は共通辞書＋明示選択した1つのGroup辞書までとする。辞書の修正・削除後も過去Analysisを再現できるようにする。
-- 文字起こし後の決定的な表記補正を`normalizationAlgorithmVersion: 1`の完全一致規則で適用する。補正前Transcriptと、適用項目・位置・`dictionaryRevisionRefs`・未適用理由を含む補正履歴を保存する。
-- 次回録音でのWhisper用語ヒントはPoCで方式・語数上限・効果を確認した後に有効化する。段階1〜5をこのPoC待ちにせず、Whisperモデル自体の学習・fine-tuningは行わない。
+- role別生Transcriptの原本保持とローカル前処理は維持する。訂正Source、用語辞書、決定的補正、用語ヒント、専用の高精度再文字起こしはRetiredであり、App撤去と検証の完了までは履歴仕様を参照する。
 - Analysis詳細上部の「あなたの対応」、自分の対応／他者への依頼／返答待ちの独立表示、Action根拠・期限候補・状態の保存、確認済みActionからのTask作成。
 - 初期無効のSlack／Teams録音確認を提供する。前面20秒継続、アプリ別既定60分cooldown、15分snooze、60分抑制、当日抑制、対象アプリ・閾値・cooldown設定を実装する。自動録音と会議・マイク・UI内容の精密検知は行わない。
 - 未実装の次期項目として、選択中マイク名、開始前／録音中の入力レベル表示、マイク／システム音声を分けた無音・切断候補の警告を提供する。切断・権限喪失時は取得済みマイク原本を確定し、システム音声を可能な限り継続保存する。無断デバイス切替と自動停止は行わない。

@@ -2,7 +2,7 @@
 
 ## Status
 
-正規Sourceモデルとlegacy Analysis移行の基盤、Analysis一覧の表示要約短縮、Task／Group archiveは実装済みである。この開発サイクルの最終全検証は別途実施する。v0.3.1の未参照Source一覧と複数選択破棄は、この文書のv0.3.2安全契約を満たさないため、修正と検証が完了するまで安全な削除導線として扱わない。v0.3.4では、Analysis選択直後をタイトルとActionsだけの段階表示にする受入仕様を確定し、実装と検証を本サイクルで行う。解析完了判定の修正、Revision／Group UI、Action管理、派生Outputと外部公開は未実装である。Transcript訂正と用語辞書は[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)、次期のTopic Source、手動Task、WBS、PM支援は[Topic Source・Task・WBS・PM支援要件](topic-source-task-wbs.md)に分離する。
+通常運用は単一のcanonical Source／Group／Taskモデルへ集約する。旧Analysisはアップデート時の一回限りの変換入力、旧Contextと旧Task Bundleは非対応形式とし、通常Reader、索引、削除、Inputへ混ぜない。変換・削除の最終検証状況は[開発フェーズ](../04-roadmap/development-phases.md)に記録する。Transcript訂正・用語辞書はRetiredであり、撤去実装と検証が完了するまで[Transcript訂正・用語辞書要件](transcript-correction-terminology.md)を履歴として保持する。
 
 ## Source中心モデル
 
@@ -15,9 +15,9 @@ Contextoryで保存する情報と成果物は、入力かAI生成かを問わ�
 - Source単体または複数Sourceを材料として、新しい派生Sourceを生成できる。
 - 派生Sourceをさらに別の生成へ再利用できる。
 - 生成時に使用した親Source IDを固定して記録し、元Sourceを上書きしない。
-- Sourceは`input`、`analysis`、`output`などの種別と、一次か派生かを表す属性を持つ。既存のAnalysis Bundleは移行期間の互換表現であり、新モデルでは対応するAnalysis Sourceとして扱う。
+- Sourceは`input`、`analysis`、`output`などの種別と、一次か派生かを表す属性を持つ。旧Analysis Bundleはアップデート時にcanonical Analysis SourceとRevision 1へ変換する入力であり、変換後の通常モデルには残さない。
 - 親Source ID、生成操作、生成日時、使用モデル、実際に使用したSource IDは派生Sourceの来歴として固定保存する。
-- 正規IDは`sourceId`とする。既存の`analysisId`は読み取り互換用に`sourceId`との対応を保持し、新規書き込みの識別子として使わない。
+- 正規IDは`sourceId`だけとする。`analysisId`の対応表を通常データやSQLite索引へ残さない。
 
 ## Group
 
@@ -210,39 +210,23 @@ Analysis Sourceの詳細画面から、根拠となる原本へ戻れること�
 
 ## Source削除
 
-Source削除は、複雑なロック操作ではなく、実際に利用中の参照確認と1回の明示確認で行う。完全削除はせず、対象BundleをmacOSのゴミ箱へ移動する。既存Manifestの`protection`は読み取り互換と削除transactionの内部復旧にだけ保持し、画面にロック解除・恒久ロックの操作を表示しない。
+Source削除は、実際に利用中の参照確認と1回の明示確認で行う。完全削除はせず、対象BundleをmacOSのゴミ箱へ移動する。`protection`、恒久ロック、ロック解除、backfillはSource Manifestにも削除transactionにも持たない。
 
 - 削除の順序は「参照確認 → 削除確認 → macOSのゴミ箱へ移動」とする。
-- ロック解除は通常の閲覧、再分析、Task作成、削除のいずれにもユーザー操作として表示しない。
 - 削除前にTask、Group、別Analysis／Revision、Addition画像Source、明示追加context Source、`stagedInputRefs`、Topicの親参照／Evidence Span／proposal、Taskのコメント・blocker・変更根拠、派生Source、外部公開記録からの参照整合性を`VaultMutationLock`内で確認する。参照中、参照走査不能、参照先欠損、path不正、hash不一致では削除を中止して判明した参照先を表示し、RevisionまたはAnalysisの削除でもcascade deleteしない。
 - 親Sourceの`analysisCompletions`は追加専用の完了監査記録であり、利用中のAnalysisへの参照として削除を恒久的に妨げない。Analysis Sourceを削除してもこの監査記録は書き換えずに残し、削除済みAnalysisへの過去記録として扱う。Task、Group、別Analysis／Revision、Addition、来歴などの実利用参照は引き続き削除を妨げる。
-- 条件を満たす削除は即時完全削除せず、Analysisと元データを含む対象BundleをmacOSのゴミ箱へ移動する。
-
-### legacy互換不一致だけのAnalysis Source cleanup例外
-
-通常のSource削除は、Bundle directory名とManifestのID・親IDを含む既存の厳格な一致検証を維持する。ただし、移行済みAnalysis Sourceを削除するためだけに、legacy Bundleのdirectory名および／またはlegacy AnalysisManifestの`sourceIds`の不一致を許容するcleanup例外を設ける。この例外は欠損・不正・未知の情報を補う仕組みではなく、次の条件をすべて満たす場合だけに限定する。
-
-- 削除対象は`kind: analysis`、`schemaVersion: 3`の移行済みcanonical Analysis Sourceであり、解決済みlegacy Manifestの`schemaVersion`は厳密に`2`である。Input、Output、Topic、External Ticket、未移行Analysis、またはcanonical Analysis Sourceだけの削除には適用しない。
-- canonical `sourceId`は削除要求、canonical Bundle directory名、canonical Manifestで完全一致し、canonical Bundle path、Manifest、必要なhashを通常削除と同じ規則で検証できる。canonical側のpathまたはManifest不一致をこの例外で許容しない。
-- canonical側に保存したlegacy `analysisId`対応と、legacy Manifestの`analysisId`を検証し、対応するlegacy Analysis Bundleをちょうど1件だけ解決できる。0件または複数件、ID不正、対応不明はfail-closedで中止する。
-- legacy Bundleの探索は承認済みlegacy root配下を再帰的に行ってよいが、解決結果はroot自身ではなく、そのrootに所有されるBundle境界の子directoryでなければならない。root直下の`analysis.json`、任意の親directory、非Bundle directoryを一致候補として採用せず、rootまたは複数Bundleをゴミ箱へ移動しない。
-- 許容する不一致は、解決済みlegacy Bundleのdirectory名とlegacy `analysisId`、およびlegacy AnalysisManifestの`sourceIds`だけである。それ以外のidentity、schema、所有境界、参照、path、hashの検証失敗は通常どおり削除を中止する。
-- `VaultMutationLock`内で参照整合性をfail-closedで走査する。走査不能、欠損、未知schema、参照中、参照先の不整合ではcleanupを実行せず、canonical／legacyのいずれの参照先もcascade deleteしない。
-- ユーザー確認は1回とする。prepareで候補と検証結果を固定し、対象（canonical／legacy）、参照、identity、path、hashを再検証してからゴミ箱へ移動する。commit直前にも同じ検証を再実行し、いずれかが変化または失敗したら中止する。
-- canonical Bundleと解決済みlegacy Bundleのゴミ箱移動は、永続化したprepare／commit記録を使う1つの回復可能な論理transactionとして扱う。片方だけの移動を成功とせず、移動失敗・中断・異常終了では起動時復旧で移動済みBundleを元の所有pathへ戻して`locked`へ収束させる。復元不能または状態不明ならfail-closedで隔離し、ユーザーの手動レビューまで再試行・削除を行わない。起動時復旧は再索引、サイドバー件数集計、Analysis一覧、未参照候補走査より先に有効な復旧recordを完了させ、不正・欠損・競合recordは削除・Source解釈せず隔離しなければならない。
+- 条件を満たす削除は即時完全削除せず、検証済みcanonical Source BundleだけをmacOSのゴミ箱へ移動する。旧Bundleを組にした削除、旧ID照合、旧形式専用の削除バイパスは設けない。
 
 ### 受入条件
 
-- ロック中のSourceは削除操作を実行できない。
-- 削除にはロック解除確認と削除確認の両方が必要である。
+- 削除には、参照確認を通過した対象と影響を示す1回の明示確認だけが必要である。
 - 参照中のSourceはゴミ箱へ移動せず、影響する参照を確認できる。
-- backfill失敗、削除キャンセル、削除失敗、異常終了後に、Sourceが削除可能な解除状態として残らない。
-- legacy cleanupは、`schemaVersion: 3`の移行済みcanonical Analysis Sourceと、`schemaVersion: 2`のちょうど1件の所有下legacy Bundleだけを対象にし、legacy側のdirectory名または`sourceIds`以外の不一致では実行されない。
-- legacy root、非Bundle directory、0件または複数件のlegacy候補はゴミ箱へ移動せず、canonical／legacyの片方だけが移動した場合は起動時復旧で削除前のロック状態へ戻る。
+- 削除キャンセル、削除失敗、異常終了後に、Bundleが中途半端に移動したり、参照確認を省略して削除できる状態になったりしない。
+- 削除対象は検証済みcanonical Source Bundleだけであり、旧Bundle、旧ID、非Bundle directoryは削除対象として解決しない。
 
 ## 未参照Source一覧と複数選択破棄
 
-タスク整理画面は、削除候補を見つけるための「未参照Source」一覧を提供する。未参照は、現行Appが読めるSource、legacy Analysis／Context、Group、Taskの参照fieldに当該canonical `sourceId`がないことだけを指す。これは現在読める参照に基づく便宜的な一覧であり、Vault全体の完全な参照グラフを保証しない。削除候補にできるのは、Manifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceだけである。`kind: analysis`を含む全ての派生Source、legacy Analysis／Context、種別・schema・Bundle境界を検証できないSourceは、参照が0件に見えても候補にしない。読取エラーや未対応形式では、一覧を表示できない通常のエラーを示す。
+タスク整理画面は、削除候補を見つけるための「未参照Source」一覧を提供する。未参照は、canonical Source、Group、Task、Revisionなどの現行参照に当該`sourceId`がないことだけを指す。これは現在読める参照に基づく便宜的な一覧であり、Vault全体の完全な参照グラフを保証しない。削除候補にできるのは、Manifest、Bundle境界、種別を検証できるcanonical `kind: input` Sourceだけである。`kind: analysis`を含む全ての派生Source、種別・schema・Bundle境界を検証できないSourceは、参照が0件に見えても候補にしない。読取エラーや未対応形式では、一覧を表示できない通常のエラーを示す。
 
 - 一覧は現行Appが読める参照から見て未参照であり、かつ上記の候補資格を満たすSourceだけを候補にする。候補のSource種別、表示要約またはfallback、JST日時、容量を表示し、削除の可否は既存のSource削除規則に従う。候補判定は削除可否の代替ではない。
 - ユーザーは候補を明示選択する。空の選択では開始せず、一覧の再読込やアプリ再起動で削除を予約・自動実行しない。
@@ -253,9 +237,9 @@ Source削除は、複雑なロック操作ではなく、実際に利用中の�
 ### 受入条件
 
 - 現行Appが読める参照から見て参照中のSourceは未参照一覧へ出ない。
-- Analysis Source、他の派生Source、legacy Analysis／Context、種別またはBundle境界を検証できないSourceは、参照数にかかわらず未参照一覧へ出ない。
+- Analysis Source、他の派生Source、種別またはBundle境界を検証できないSourceは、参照数にかかわらず未参照一覧へ出ない。
 - 複数選択したSourceだけに明示確認後の順次ゴミ箱移動を実行し、各Sourceの成功・失敗を表示する。選択外のBundleを移動・更新しない。
-- legacy Analysis cleanupの例外は未参照一覧・一括削除に適用されず、同cleanupだけの専用操作に限定される。
+- 旧形式を未参照一覧・一括削除・通常削除のいずれにも解決しない。
 - 起動中の削除復旧が未完了または隔離された場合、未参照一覧と削除操作は有効化しない。一方で、隔離recordを削除JobまたはSourceとして解釈せず、有効な復旧recordと復旧済みAnalysisの一覧・件数表示を継続する。
 
 ## Task
@@ -333,7 +317,7 @@ Analysis Sourceの詳細画面に、当該Sourceの内容を前提としてClaud
 
 ## 初期実装順
 
-1. Source統一・legacy移行: 既存Analysisへ正規`sourceId`とRevision 1の不変summary snapshotを割り当て、対応表、ハッシュ、Bundle走査による再構築を検証する。検証後にのみRevisionの新規書き込みを開始する。
+1. Source統一・旧Analysis変換: 既存Analysisをcanonical `sourceId`とRevision 1の不変summary snapshotへ一回だけ変換し、hashとBundle走査による再構築を検証する。成功した旧BundleはFinderのゴミ箱へ移動し、旧ID対応表を残さない。ゴミ箱移動に失敗した場合は元の所有pathへ残してAnalysis writerを停止する。旧Context／旧Task Bundleは推測変換せず非対応として停止する。
 2. Group: Group作成、名称変更、Source追加・除外、複数Group所属、Group–Source来歴を実装する。
 3. Revision: Analysis Sourceへのテキスト・画像・URL追加、URL安全化、Revision履歴、summary再生成、原本／追加情報の閲覧を実装する。
 4. AI対話: 選択済みSource／Groupだけの一時staging、監査履歴、Revisionを介した`summary.md`反映を実装する。

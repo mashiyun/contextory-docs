@@ -10,7 +10,7 @@
 
 ## Decision
 
-このDecisionは既存実装の読み取り互換と来歴解釈のために残す。新規書き込み、正規ID、Revision、Group、Outputの正規モデルはADR-009に従う。
+このDecisionは歴史的な判断の記録として残す。旧Context／旧Analysisを通常Readerや来歴解釈へ残す根拠にはしない。新規書き込み、正規ID、Revision、Group、Outputの正規モデルはADR-009に従う。
 
 - Sourceは不変の一次データとして個別に保持する。
 - Contextは1件以上のSource IDの組み合わせとして独立保存する。新規設計では、関連Sourceを集める入れ物をGroupと呼び、Contextは移行期間の互換表現とする。
@@ -28,4 +28,4 @@
 - ContextとAnalysisの選択・確認・修正UIが別途必要になる。
 - Local Vaultのファイル数は増えるが、原本の不要な複製は発生しない。
 - Analysis Sourceの同一性とRevision履歴の境界はADR-009で具体化する。
-- 既存`contexts/`および`analyses/`は読み取り可能なまま残すが、このADRに基づく新規書き込みは行わない。
+- 旧`contexts/`は非対応形式であり、通常読込・新規書き込みを行わない。旧`analyses/`はcanonical Analysis Sourceへの一回限りの変換入力に限定する。

@@ -1,10 +1,12 @@
 # ADR-014: Transcript訂正を不変Sourceとし、用語辞書で決定的に補正する
 
-- Status: Accepted
+- Status: Retired — canonical model consolidation; App removal and verification are pending
 - Date: 2026-08-15
 - Related: [ADR-005](ADR-005-separate-system-and-microphone-audio.md), [ADR-008](ADR-008-local-media-preprocessing.md), [ADR-009](ADR-009-analysis-source-revisions.md), [ADR-012](ADR-012-minimal-claude-staging.md)
 
 ## Context
+
+このADRは将来仕様として採用していたが、未利用の補正Source、辞書Revision、再解析、専用SQLite投影を通常の音声処理へ持ち込む複雑さが大きいためRetiredとする。撤去実装と検証が完了するまで、本書は履歴として残し、既存データの削除・変換完了は主張しない。role別の生Transcript保持とローカル前処理はADR-005／ADR-008に残る。
 
 実利用で、ローカルWhisperが固有名詞、製品名、社内用語、人名を誤変換することを確認した。誤ったTranscriptからSummaryとタスク分類を生成すると、誤りが下流へ伝播する。
 

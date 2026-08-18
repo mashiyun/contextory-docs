@@ -12,7 +12,7 @@
 
 - Taskは固有IDを持つTask Bundleとして保存する。
 - Taskは`parentTaskIds`を保持する。Task–Source／Task–Groupの正規関係はADR-011に従い、`task.json`の`sourceLinks`／`groupLinks`へ保存する。
-- 既存の`sourceIds`、`analysisIds`は読み取り互換のために保持できる。legacy `analysisId`はADR-009に従って正規`sourceId`へ対応付ける。
+- TaskのSource参照は`sourceLinks`だけとする。旧`sourceIds`、`analysisIds`、旧Analysis ID配列を通常ReaderやSQLite索引で解決しない。旧Task Bundleは推測変換せず非対応として停止する。
 - OutputはTaskの特別な正規形ではなく、ADR-009に従う`kind: output`の派生Sourceとする。既存の派生Output Taskは読み取り可能なTask来歴として残す。
 - Task作成や再生成でSource、Analysis、親Taskを上書き・移動しない。
 - Task来歴は`task.json`を正本とし、SQLite `tasks`、`task_sources`、`task_groups` IndexをBundle走査で再構築可能にする。
@@ -21,7 +21,7 @@
 
 ## Consequences
 
-- Taskから根拠となるTask、Source、legacy Analysisへ逆引きできる。正規Output Sourceからも親SourceとTaskへ逆引きできる。
+- Taskから根拠となるTaskとcanonical Sourceへ逆引きできる。正規Output Sourceからも親SourceとTaskへ逆引きできる。
 - 同じ見積結果をBacklog返信、メール、Excelなど複数Outputへ再利用できる。
 - Taskの統合・分岐が増えても過去履歴を保持できる。
 - SourceやTask削除時の参照整合性確認と、来歴表示UIが別途必要になる。
